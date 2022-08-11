@@ -252,7 +252,7 @@ def comments_parser(coverpoints):
 		cvpts.append((cvpt+ " #nosat",comment))
 	return cvpts
 
-def ibm_b1(flen, opcode, ops):
+def ibm_b1(flen, opcode, ops, rvv_sew = -1):
 	'''
 	IBM Model B1 Definition:
 	    Test all combinations of floating-point basic types, positive and negative, for
@@ -279,35 +279,53 @@ def ibm_b1(flen, opcode, ops):
 	    - Coverpoints are then appended with the respective rounding mode for that particular opcode.
 
 	'''
-	if flen == 32:
-		basic_types = fzero + fminsubnorm + [fsubnorm[0], fsubnorm[3]] +\
-			fmaxsubnorm + fminnorm + [fnorm[0], fnorm[3]] + fmaxnorm + \
-			finfinity + fdefaultnan + [fqnan[0], fqnan[3]] + \
-			[fsnan[0], fsnan[3]] + fone
-	elif flen == 64:
-		basic_types = dzero + dminsubnorm + [dsubnorm[0], dsubnorm[1]] +\
-			dmaxsubnorm + dminnorm + [dnorm[0], dnorm[1]] + dmaxnorm + \
-			dinfinity + ddefaultnan + [dqnan[0], dqnan[1]] + \
-			[dsnan[0], dsnan[1]] + done
-	else:
-		logger.error('Invalid flen value!')
-		sys.exit(1)
 
+	if rvv_sew == -1:
+		if flen == 32:
+			basic_types = fzero + fminsubnorm + [fsubnorm[0], fsubnorm[3]] +\
+				fmaxsubnorm + fminnorm + [fnorm[0], fnorm[3]] + fmaxnorm + \
+				finfinity + fdefaultnan + [fqnan[0], fqnan[3]] + \
+				[fsnan[0], fsnan[3]] + fone
+		elif flen == 64:
+			basic_types = dzero + dminsubnorm + [dsubnorm[0], dsubnorm[1]] +\
+				dmaxsubnorm + dminnorm + [dnorm[0], dnorm[1]] + dmaxnorm + \
+				dinfinity + ddefaultnan + [dqnan[0], dqnan[1]] + \
+				[dsnan[0], dsnan[1]] + done
+		else:
+			logger.error('Invalid flen value!')
+			sys.exit(1)
+	# rvv_vsew != -1: vector-instructions, use `selected-element-width` instead of `flen`
+	else:
+		# 暂不支持测试非数（Nan），因为Spike的浮点数运算一旦遇到非数一定返回False
+		if rvv_sew == 32:
+			basic_types = fzero + fminsubnorm + [fsubnorm[0], fsubnorm[3]] +\
+				fmaxsubnorm + fminnorm + [fnorm[0], fnorm[3]] + fmaxnorm + \
+				fone
+		elif rvv_sew == 64:
+			basic_types = dzero + dminsubnorm + [dsubnorm[0], dsubnorm[1]] +\
+				dmaxsubnorm + dminnorm + [dnorm[0], dnorm[1]] + dmaxnorm + \
+				done
+		else:
+			logger.error('Invalid flen value!')
+			sys.exit(1)
     # the following creates a cross product for ops number of variables
 	b1_comb = list(itertools.product(*ops*[basic_types]))
 	coverpoints = []
 	for c in b1_comb:
 		cvpt = ""
 		for x in range(1, ops+1):
-#            cvpt += 'rs'+str(x)+'_val=='+str(c[x-1]) # uncomment this if you want rs1_val instead of individual fields
-			cvpt += (extract_fields(flen,c[x-1],str(x)))
-			cvpt += " and "
+			if x != 1:
+				cvpt += " and "
+			if rvv_sew != -1:
+				cvpt += 'rs'+str(x)+'_val=='+str(c[x-1]) # uncomment this if you want rs1_val instead of individual fields
+			else:
+				cvpt += (extract_fields(flen,c[x-1],str(x)))
 		if opcode.split('.')[0] in ["fadd","fsub","fmul","fdiv","fsqrt","fmadd","fnmadd","fmsub","fnmsub","fcvt","fmv","fle","fmv","fmin","fsgnj"]:
-			cvpt += 'rm_val == 0'
+			cvpt += ' and rm_val == 0'
 		elif opcode.split('.')[0] in ["fclass","flt","fmax","fsgnjn"]:
-			cvpt += 'rm_val == 1'
+			cvpt += ' and rm_val == 1'
 		elif opcode.split('.')[0] in ["feq","flw","fsw","fsgnjx"]:
-			cvpt += 'rm_val == 2'
+			cvpt += ' and rm_val == 2'
 		cvpt += ' # '
 		for y in range(1, ops+1):
 			cvpt += 'rs'+str(y)+'_val=='
@@ -323,7 +341,7 @@ def ibm_b1(flen, opcode, ops):
 
 	return coverpoints
 
-def ibm_b2(flen, opcode, ops, int_val = 100, seed = -1):
+def ibm_b2(flen, opcode, ops, int_val = 100, seed = -1, rvv_sew = -1):
 	'''
 	IBM Model B2 Definition:
             This model tests final results that are very close, measured in Hamming
@@ -372,7 +390,7 @@ def ibm_b2(flen, opcode, ops, int_val = 100, seed = -1):
 	opcode = opcode.split('.')[0]
 
 	if seed == -1:
-		if opcode in 'fadd':
+		if opcode in 'fadd' or opcode.startswith("vf"):
 			random.seed(0)
 		elif opcode in 'fsub':
 			random.seed(1)
@@ -412,7 +430,7 @@ def ibm_b2(flen, opcode, ops, int_val = 100, seed = -1):
 		rs3_bin = ('0b0'+rexp+('0'*(m_sz-(len(rs3_bin)-2)))+rs3_bin[2:])
 		rs1 = fields_dec_converter(flen,'0x'+hex(int('1'+rs1_bin[2:],2))[3:])
 		rs3 = fields_dec_converter(flen,'0x'+hex(int('1'+rs3_bin[2:],2))[3:])
-		if opcode in 'fadd':
+		if opcode in 'fadd' or opcode.startswith("vf"):
 			rs2 = fields_dec_converter(flen,result[i][0]) - rs1
 		elif opcode in 'fsub':
 			rs2 = rs1 - fields_dec_converter(flen,result[i][0])
@@ -437,7 +455,7 @@ def ibm_b2(flen, opcode, ops, int_val = 100, seed = -1):
 		elif(flen==64):
 			m = rs2
 
-		if opcode in ['fadd','fsub','fmul','fdiv']:
+		if opcode in ['fadd','fsub','fmul','fdiv'] or opcode.startswith("vf"):
 			b2_comb.append((floatingPoint_tohex(flen,rs1),floatingPoint_tohex(flen,m)))
 		elif opcode in 'fsqrt':
 			b2_comb.append((floatingPoint_tohex(flen,m),))
@@ -449,10 +467,14 @@ def ibm_b2(flen, opcode, ops, int_val = 100, seed = -1):
 	for c in b2_comb:
 		cvpt = ""
 		for x in range(1, ops+1):
-#            cvpt += 'rs'+str(x)+'_val=='+str(c[x-1]) # uncomment this if you want rs1_val instead of individual fields
-			cvpt += (extract_fields(flen,c[x-1],str(x)))
-			cvpt += " and "
-		cvpt += 'rm_val == 0'
+			if x != 1:
+				cvpt += " and "
+			if rvv_sew != -1:
+				cvpt += 'rs'+str(x)+'_val=='+str(c[x-1]) # uncomment this if you want rs1_val instead of individual fields
+			else:
+				cvpt += (extract_fields(flen,c[x-1],str(x)))
+		if not opcode.startswith("vf"):
+			cvpt += ' and rm_val == 0'
 		cvpt += ' # '
 		for y in range(1, ops+1):
 			cvpt += 'rs'+str(y)+'_val=='

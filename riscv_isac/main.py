@@ -121,11 +121,17 @@ def cli(verbose):
         default = 1,
         help = 'Set number of processes to calculate coverage'
 )
+@click.option('--vlen','-v',
+        type=click.Choice(['32','64','128']),
+        default='128',
+        help="VLEN value for the Vector-Register Length."
+)
 
 def coverage(elf,trace_file, window_size, cgf_file, detailed,parser_name, decoder_name, parser_path, decoder_path,output_file, test_label,
-        sig_label, dump,cov_label, xlen, no_count, procs):
+        sig_label, dump,cov_label, xlen, vlen, no_count, procs):
     isac(output_file,elf,trace_file, window_size, expand_cgf(cgf_file,int(xlen)), parser_name, decoder_name, parser_path, decoder_path, detailed, test_label,
-            sig_label, dump, cov_label, int(xlen), no_count, procs)
+            sig_label, dump, cov_label, int(xlen), int(vlen), no_count, procs)
+
 
 @cli.command(help = "Merge given coverage files.")
 @click.argument(

@@ -18,14 +18,15 @@ class disassembler():
             0b0011011: self.rv64i_arithi_ops,
             0b0111011: self.rv64i_arith_ops,
             0b0101111: self.rv64_rv32_atomic_ops,
-            0b0000111: self.flw_fld,
+            0b0000111: self.flwfld_vload,
             0b0100111: self.fsw_fsd,
             0b1000011: self.fmadd,
             0b1000111: self.fmsub,
             0b1001011: self.fnmsub,
             0b1001111: self.fnmadd,
             0b1010011: self.rv32_rv64_float_ops,
-            0b1110111: self.rvp_ops
+            0b1110111: self.rvp_ops,
+            0b1010111: self.v_ops
         }
         """ Instruction Op-Codes dict for 32-bit instructions """
 
@@ -410,9 +411,11 @@ class disassembler():
         self.arch = arch
 
     FIRST2_MASK = 0x00000003
+    LAST2_MASK = 0xc0000000
     OPCODE_MASK = 0x0000007f
     FUNCT3_MASK = 0x00007000
     FUNCT6_MASK = 0x3F000000
+    V_FUNCT6_MASK = 0xFC000000
     FUNCT4_MASK = 0x3e000000
 
     RD_MASK = 0x00000f80
@@ -2329,7 +2332,720 @@ class disassembler():
             instrObj.rs1 = (2 , 'x')
         return instrObj
 
-    
+    def v_ops(self, instrObj):
+        instr = instrObj.instr
+        rd = (instr & self.RD_MASK) >> 7
+        rs1 = (instr & self.RS1_MASK) >> 15
+        rs2 = (instr & self.RS2_MASK) >> 20
+        funct6 = (instr & self.V_FUNCT6_MASK) >> 26
+        funct3 = (instr & self.FUNCT3_MASK) >> 12
+        imm = (instr & self.RS1_MASK) >> 15
+        vm = (instr >> 25) & 1
+
+        # Vector Conguration Instr
+        if funct3 == 0b111: 
+            last_two_bits = self.LAST2_MASK & instr
+            if last_two_bits == 0b10:
+                instrObj.instr_name = 'vsetvl'
+                instrObj.rs1 = (rs1, 'x')
+                instrObj.rs2 = (rs2, 'x')
+                instrObj.rd = (rd, 'x')
+            elif last_two_bits == 0b11:
+                instrObj.instr_name = 'vsetivli'
+                imm = (instr >> 20) & 0b1111111111
+                instrObj.rs1 = (rs1, 'x')
+                instrObj.imm = (imm, 'x')
+                instrObj.rd = (rd, 'x')
+            else:
+                instrObj.instr_name = 'vsetvli'
+                imm = (instr >> 20) & 0b11111111111
+                instrObj.rs1 = (rs1, 'x')
+                instrObj.imm = (imm, 'x')
+                instrObj.rd = (rd, 'x')
+
+        # OPIVV/IVX/IVI
+        if funct3 == 0b000 or funct3 == 0b011 or funct3 == 0b100:
+            if funct6 == 0b000000:
+                instrObj.instr_name = 'vadd'
+            elif funct6 == 0b000010:
+                instrObj.instr_name = 'vsub'
+            elif funct6 == 0b000011:
+                instrObj.instr_name = 'vrsub'
+            elif funct6 == 0b010000:
+                instrObj.instr_name = 'vadc'
+            elif funct6 == 0b010001:
+                instrObj.instr_name = 'vmadc'
+            elif funct6 == 0b010010:
+                instrObj.instr_name = 'vsbc'
+            elif funct6 == 0b010011:
+                instrObj.instr_name = 'vmsbc'
+            elif funct6 == 0b001001:
+                instrObj.instr_name = 'vand'
+            elif funct6 == 0b001010:
+                instrObj.instr_name = 'vor'
+            elif funct6 == 0b001011:
+                instrObj.instr_name = 'vxor'
+            elif funct6 == 0b100101:
+                instrObj.instr_name = 'vsll'
+            elif funct6 == 0b101000:
+                instrObj.instr_name = 'vsrl'
+            elif funct6 == 0b101001:
+                instrObj.instr_name = 'vsra'
+            elif funct6 == 0b101100:
+                instrObj.instr_name = 'vnsrl'
+            elif funct6 == 0b101101:
+                instrObj.instr_name = 'vnsra'
+            elif funct6 == 0b011000:
+                instrObj.instr_name = 'vmseq'
+            elif funct6 == 0b011001:
+                instrObj.instr_name = 'vmsne'
+            elif funct6 == 0b011010:
+                instrObj.instr_name = 'vmsltu'
+            elif funct6 == 0b011011:
+                instrObj.instr_name = 'vmslt'
+            elif funct6 == 0b011100:
+                instrObj.instr_name = 'vmsleu'
+            elif funct6 == 0b011101:
+                instrObj.instr_name = 'vmsle'
+            elif funct6 == 0b011110:
+                instrObj.instr_name = 'vmsgtu'
+            elif funct6 == 0b011111:
+                instrObj.instr_name = 'vmsgt'
+            elif funct6 == 0b010111:
+                if rs2 == 0:
+                    instrObj.instr_name = 'vmv'
+                else:
+                    instrObj.instr_name = 'vmerge'
+            elif funct6 == 0b100000:
+                instrObj.instr_name = 'vsaddu'
+            elif funct6 == 0b100001:
+                instrObj.instr_name = 'vsadd'
+            elif funct6 == 0b100010:
+                instrObj.instr_name = 'vssubu'
+            elif funct6 == 0b100011:
+                instrObj.instr_name = 'vssub'
+            elif funct6 == 0b100111:
+                if funct3 == 0b011:
+                    instrObj.instr_name = 'vmvnr'
+                else:
+                    instrObj.instr_name = 'vsmul'
+            elif funct6 == 0b101010:
+                instrObj.instr_name = 'vssrl'
+            elif funct6 == 0b101011:
+                instrObj.instr_name = 'vssra'
+            elif funct6 == 0b101110:
+                instrObj.instr_name = 'vnclipu'
+            elif funct6 == 0b101111:
+                instrObj.instr_name = 'vnclip'
+            elif funct6 == 0b110000:
+                instrObj.instr_name = 'vwredsumu'
+            elif funct6 == 0b110001:
+                instrObj.instr_name = 'vwredsum'
+            elif funct6 == 0b001110:
+                if funct3 == 0b000:
+                    instrObj.instr_name = 'vrgatherei16'
+                else:
+                    instrObj.instr_name = 'vslideup'
+            elif funct6 == 0b001100:
+                instrObj.instr_name = 'vrgather'
+            elif funct6 == 0b000111:
+                instrObj.instr_name = 'vmax'
+            elif funct6 == 0b000110:
+                instrObj.instr_name = 'vmaxu'
+            elif funct6 == 0b000101:
+                instrObj.instr_name = 'vmin'
+            elif funct6 == 0b000100:
+                instrObj.instr_name = 'vminu'
+        # OPMVV/MVX
+        elif funct3 == 0b010 or funct3 == 0b110: 
+            if funct6 == 0b110000 or funct6 == 0b110100:
+                instrObj.instr_name = 'vwaddu'
+            elif funct6 == 0b110001 or funct6 == 0b110101:
+                instrObj.instr_name = 'vwadd'
+            elif funct6 == 0b110010 or funct6 == 0b110110:
+                instrObj.instr_name = 'vwsubu'            
+            elif funct6 == 0b110011 or funct6 == 0b110111:
+                instrObj.instr_name = 'vwsub'
+            elif funct6 == 0b010010:
+                instrObj.instr_name = 'vext'
+            elif funct6 == 0b100101:
+                instrObj.instr_name = 'vmul'
+            elif funct6 == 0b100111:
+                instrObj.instr_name = 'vmulh'
+            elif funct6 == 0b100100:
+                instrObj.instr_name = 'vmulhu'
+            elif funct6 == 0b100110:
+                instrObj.instr_name = 'vmulhsu'
+            elif funct6 == 0b100001:
+                instrObj.instr_name = 'vdiv'
+            elif funct6 == 0b100000:
+                instrObj.instr_name = 'vdivu'
+            elif funct6 == 0b100011:
+                instrObj.instr_name = 'vrem'
+            elif funct6 == 0b100010:
+                instrObj.instr_name = 'vremu'
+            elif funct6 == 0b111011:
+                instrObj.instr_name = 'vwmul'
+            elif funct6 == 0b111000:
+                instrObj.instr_name = 'vwmulu'
+            elif funct6 == 0b111010:
+                instrObj.instr_name = 'vwmulsu'
+            elif funct6 == 0b101101:
+                instrObj.instr_name = 'vmacc'
+            elif funct6 == 0b101111:
+                instrObj.instr_name = 'vnmsac'
+            elif funct6 == 0b101001:
+                instrObj.instr_name = 'vmadd'
+            elif funct6 == 0b101011:
+                instrObj.instr_name = 'vnmsub'
+            elif funct6 == 0b111101:
+                instrObj.instr_name = 'vwmacc'
+            elif funct6 == 0b111100:
+                instrObj.instr_name = 'vwmaccu'
+            elif funct6 == 0b111110:
+                instrObj.instr_name = 'vwmaccus'
+            elif funct6 == 0b111111:
+                instrObj.instr_name = 'vwmaccsu'
+            elif funct6 == 0b001000:
+                instrObj.instr_name = 'vaaddu'
+            elif funct6 == 0b001001:
+                instrObj.instr_name = 'vaadd'
+            elif funct6 == 0b001010:
+                instrObj.instr_name = 'vasubu'
+            elif funct6 == 0b001011:
+                instrObj.instr_name = 'vasub'
+            elif funct6 == 0b000000:
+                instrObj.instr_name = 'vredsum'
+            elif funct6 == 0b000001:
+                instrObj.instr_name = 'vredand'
+            elif funct6 == 0b000010:
+                instrObj.instr_name = 'vredor'
+            elif funct6 == 0b000011:
+                instrObj.instr_name = 'vredxor'
+            elif funct6 == 0b000100:
+                instrObj.instr_name = 'vredminu'
+            elif funct6 == 0b000101:
+                instrObj.instr_name = 'vredmin'
+            elif funct6 == 0b000110:
+                instrObj.instr_name = 'vredmax'
+            elif funct6 == 0b000111:
+                instrObj.instr_name = 'vredmaxu'
+            elif funct6 == 0b011000:
+                instrObj.instr_name = 'vmandnot'
+            elif funct6 == 0b011001:
+                instrObj.instr_name = 'vmand'
+            elif funct6 == 0b011010:
+                instrObj.instr_name = 'vmor'
+            elif funct6 == 0b011011:
+                instrObj.instr_name = 'vmxor'
+            elif funct6 == 0b011100:
+                instrObj.instr_name = 'vmornot'
+            elif funct6 == 0b011101:
+                instrObj.instr_name = 'vmnand'
+            elif funct6 == 0b011110:
+                instrObj.instr_name = 'vmnor'
+            elif funct6 == 0b011111:
+                instrObj.instr_name = 'vmxnor'
+            elif funct6 == 0b010000:
+                instrObj.instr_name = 'VWXUNARY0'
+            elif funct6 == 0b010100:
+                instrObj.instr_name = 'VMUNARY0'
+            elif funct6 == 0b001110:
+                instrObj.instr_name = 'vslide1up'
+            elif funct6 == 0b001111:
+                instrObj.instr_name = 'vslide1down'
+            elif funct6 == 0b010111:
+                instrObj.instr_name = 'vcompress'
+        # OPFVV/FVF
+        elif funct3 == 0b001 or funct3 == 0b101:
+            if funct6 == 0b000000:
+                instrObj.instr_name = 'vfadd'
+            elif funct6 == 0b000010:
+                instrObj.instr_name = 'vfsub'
+            elif funct6 == 0b100111:
+                instrObj.instr_name = 'vfrsub'
+            elif funct6 == 0b110000:
+                instrObj.instr_name = 'vfwadd'
+            elif funct6 == 0b110010:
+                instrObj.instr_name = 'vfwsub'
+            elif funct6 == 0b100100:
+                instrObj.instr_name = 'vfmul'
+            elif funct6 == 0b100000:
+                instrObj.instr_name = 'vfdiv'
+            elif funct6 == 0b100001:
+                instrObj.instr_name = 'vfrdiv'
+            elif funct6 == 0b111000:
+                instrObj.instr_name = 'vfwmul'
+            elif funct6 == 0b101000:
+                instrObj.instr_name = 'vfmadd'
+            elif funct6 == 0b101001:
+                instrObj.instr_name = 'vfrnmadd'
+            elif funct6 == 0b101010:
+                instrObj.instr_name = 'vfmsub'
+            elif funct6 == 0b101011:
+                instrObj.instr_name = 'vfmsub'
+            elif funct6 == 0b101100:
+                instrObj.instr_name = 'vfmacc'
+            elif funct6 == 0b101101:
+                instrObj.instr_name = 'vfnmacc'
+            elif funct6 == 0b101110:
+                instrObj.instr_name = 'vfmsac'
+            elif funct6 == 0b101111:
+                instrObj.instr_name = 'vfnmsac'
+            elif funct6 == 0b111100:
+                instrObj.instr_name = 'vfwmacc'
+            elif funct6 == 0b111101:
+                instrObj.instr_name = 'vfwnmacc'
+            elif funct6 == 0b111110:
+                instrObj.instr_name = 'vfwmsac'
+            elif funct6 == 0b111111:
+                instrObj.instr_name = 'vfwnmsac'
+            elif funct6 == 0b010011:
+                instrObj.instr_name = 'VFUNARY1'
+            elif funct6 == 0b000100:
+                instrObj.instr_name = 'vfmin'
+            elif funct6 == 0b000110:
+                instrObj.instr_name = 'vfmax'
+            elif funct6 == 0b001000:
+                instrObj.instr_name = 'vfsgnj'
+            elif funct6 == 0b001001:
+                instrObj.instr_name = 'vfsgnjn'
+            elif funct6 == 0b001010:
+                instrObj.instr_name = 'vfsgnjx'
+            elif funct6 == 0b011000:
+                instrObj.instr_name = 'vmfeq'
+            elif funct6 == 0b011001:
+                instrObj.instr_name = 'vmfle'
+            elif funct6 == 0b011011:
+                instrObj.instr_name = 'vmflt'
+            elif funct6 == 0b011100:
+                instrObj.instr_name = 'vmfne'
+            elif funct6 == 0b011101:
+                instrObj.instr_name = 'vmfgt'
+            elif funct6 == 0b011111:
+                instrObj.instr_name = 'vmfge'
+            elif funct6 == 0b010111:
+                if rs2 == 0:
+                    instrObj.instr_name = 'vfmv'
+                else:
+                    instrObj.instr_name = 'vfmerge'
+            elif funct6 == 0b010010:
+                instrObj.instr_name = 'VFUNARY0'
+            elif funct6 == 0b000001:
+                instrObj.instr_name = 'vfredusum'
+            elif funct6 == 0b000011:
+                instrObj.instr_name = 'vfredosum'
+            elif funct6 == 0b110001:
+                instrObj.instr_name = 'vfwredusum'
+            elif funct6 == 0b110011:
+                instrObj.instr_name = 'vfwredosum'
+            elif funct6 == 0b000101:
+                instrObj.instr_name = 'vfredmin'
+            elif funct6 == 0b000111:
+                instrObj.instr_name = 'vfredmax'
+            elif funct6 == 0b010000:
+                instrObj.instr_name = 'VW_RFUNARY0'
+            elif funct6 == 0b001110:
+                instrObj.instr_name = 'vfslide1up'
+            elif funct6 == 0b001111:
+                instrObj.instr_name = 'vfslide1down'
+            
+
+        # Assign rs1, rs2, rd, imm, suffix of instr_name 
+        if funct3 == 0b000: #OPIVV
+            if instrObj.instr_name in ['vnsrl', 'vnsra']:
+                instrObj.instr_name = instrObj.instr_name + ".wv"
+            elif instrObj.instr_name.startswith("vwred"):
+                instrObj.instr_name = instrObj.instr_name + ".vs"
+            else:
+                instrObj.instr_name = instrObj.instr_name + ".vv"
+            instrObj.rs1 = (rs1, 'v')
+            instrObj.rs2 = (rs2, 'v')
+            instrObj.rd = (rd, 'v')
+        elif funct3 == 0b011: #OPIVI
+            if instrObj.instr_name in ['vnsrl', 'vnsra']:
+                instrObj.instr_name = instrObj.instr_name + ".wi"
+            else:
+                instrObj.instr_name = instrObj.instr_name + ".vi"
+            instrObj.imm = imm
+            instrObj.rs2 = (rs2, 'v')
+            instrObj.rd = (rd, 'v')
+        elif funct3 == 0b100: #OPIVX
+            if instrObj.instr_name in ['vnsrl', 'vnsra']:
+                instrObj.instr_name = instrObj.instr_name + ".wx"
+            else:
+                instrObj.instr_name = instrObj.instr_name + ".vx"
+            instrObj.rs1 = (rs1, 'x')
+            instrObj.rs2 = (rs2, 'v')
+            instrObj.rd = (rd, 'v')
+        elif funct3 == 0b010: #OPMVV
+            if funct6 in [0b110100, 0b110101, 0b110110, 0b110111]: #vwadd,
+                instrObj.instr_name = instrObj.instr_name + ".wv"
+            elif funct6 >= 0b011000 and funct6 <= 0b011111: #Vector Mask-Register Logical Instructions
+                instrObj.instr_name = instrObj.instr_name + ".mm"
+            elif instrObj.instr_name.startswith("vred"):
+                instrObj.instr_name = instrObj.instr_name + ".vs"
+            else:
+                instrObj.instr_name = instrObj.instr_name + ".vv"
+            instrObj.rs1 = (rs1, 'v')
+            instrObj.rs2 = (rs2, 'v')
+            instrObj.rd = (rd, 'v')
+        elif funct3 == 0b110: #OPMVX
+            if funct6 in [0b110101, 0b110111, 0b110100, 0b110110]: # vwadd(u), vwsub(u)
+                instrObj.instr_name = instrObj.instr_name + '.wx'
+            else:
+                instrObj.instr_name = instrObj.instr_name + ".vx"
+            instrObj.rs1 = (rs1, 'x')
+            instrObj.rs2 = (rs2, 'v')
+            instrObj.rd = (rd, 'v')
+        elif funct3 == 0b001: #OPFVV
+            if funct6 in [0b110100, 0b110110]: #vfwadd, vfwsub
+                instrObj.instr_name = instrObj.instr_name + ".wv"
+            else:
+                instrObj.instr_name = instrObj.instr_name + ".vv"
+            instrObj.rs1 = (rs1, 'v')
+            instrObj.rs2 = (rs2, 'v')
+            instrObj.rd = (rd, 'v')
+        elif funct3 == 0b101: #OPFVF
+            if funct6 in [0b110100, 0b110110]: #vfwadd, vfwsub
+                instrObj.instr_name = instrObj.instr_name + ".wf"
+            elif instrObj.instr_name.startswith("vfred") or instrObj.instr_name.startswith("vfwred"):
+                instrObj.instr_name = instrObj.instr_name + ".vs"
+            else:
+                instrObj.instr_name = instrObj.instr_name + ".vf"
+            instrObj.rs1 = (rs1, 'f')
+            instrObj.rs2 = (rs2, 'v')
+            instrObj.rd = (rd, 'v')
+
+        # Special Suffix/Operand Process
+        if instrObj.instr_name.startswith("vadc"):
+            if funct3 == 0b000:
+                instrObj.instr_name = 'vadc.vvm'
+            elif funct3 == 0b011:
+                instrObj.instr_name = 'vadc.vim'
+            elif funct3 == 0b100:
+                instrObj.instr_name = 'vadc.vxm'
+        elif instrObj.instr_name.startswith("vsbc"):
+            if funct3 == 0b000:
+                instrObj.instr_name = 'vsbc.vvm'
+            elif funct3 == 0b100:
+                instrObj.instr_name = 'vsbc.vxm'
+        elif instrObj.instr_name.startswith("vmadc"):
+            if vm == 0:
+                if funct3 == 0b000:
+                    instrObj.instr_name = 'vmadc.vvm'
+                elif funct3 == 0b011:
+                    instrObj.instr_name = 'vmadc.vim'
+                elif funct3 == 0b100:
+                    instrObj.instr_name = 'vmadc.vxm'
+            elif vm == 1:
+                if funct3 == 0b000:
+                    instrObj.instr_name = 'vmadc.vv'
+                elif funct3 == 0b011:
+                    instrObj.instr_name = 'vmadc.vi'
+                elif funct3 == 0b100:
+                    instrObj.instr_name = 'vmadc.vx'
+        elif instrObj.instr_name.startswith("vmsbc"):
+            if vm == 0:
+                if funct3 == 0b000:
+                    instrObj.instr_name = 'vmadc.vvm'
+                elif funct3 == 0b100:
+                    instrObj.instr_name = 'vmadc.vxm'
+            elif vm == 1:
+                if funct3 == 0b000:
+                    instrObj.instr_name = 'vmadc.vv'
+                elif funct3 == 0b100:
+                    instrObj.instr_name = 'vmadc.vx'
+        elif instrObj.instr_name.startswith("vext"):
+            instrObj.rs1 = None
+            if rs1 == 0b00010:
+                instrObj.instr_name = 'vzext.vf8'
+            elif rs1 == 0b00011:
+                instrObj.instr_name = 'vsext.vf8'
+            if rs1 == 0b00100:
+                instrObj.instr_name = 'vzext.vf4'
+            elif rs1 == 0b00101:
+                instrObj.instr_name = 'vsext.vf4'
+            if rs1 == 0b00110:
+                instrObj.instr_name = 'vzext.vf2'
+            elif rs1 == 0b00111:
+                instrObj.instr_name = 'vsext.vf2'
+        elif instrObj.instr_name.startswith("vmv"):
+            instrObj.rs2 = None
+            if funct3 == 0b000:
+                instrObj.instr_name = 'vmv.v.v'
+            elif funct3 == 0b011:
+                instrObj.instr_name = 'vmv.v.i'
+            elif funct3 == 0b100:
+                instrObj.instr_name = 'vmv.v.x'
+        elif instrObj.instr_name.startswith("vfmv"):
+            instrObj.rs2 = None
+            instrObj.instr_name = 'vfmv.v.f'
+        elif instrObj.instr_name.startswith("vmerge"):
+            if funct3 == 0b000:
+                instrObj.instr_name = 'vmerge.vvm'
+            elif funct3 == 0b011:
+                instrObj.instr_name = 'vmerge.vim'
+            elif funct3 == 0b100:
+                instrObj.instr_name = 'vmerge.vxm'
+        elif instrObj.instr_name.startswith("vfmerge"):
+            instrObj.instr_name = 'vfmerge.vfm'
+        elif instrObj.instr_name.startswith("VFUNARY1"):
+            instrObj.rs1 = None
+            if rs1 == 0b00000:
+                instrObj.instr_name = "vfsqrt.v"
+            elif rs1 == 0b00100:
+                instrObj.instr_name = "vfsqrt7.v"
+            elif rs1 == 0b00101:
+                instrObj.instr_name = "vfrec7.v"
+            elif rs1 == 0b10000:
+                instrObj.instr_name = "vfclass.v"
+        elif instrObj.instr_name.startswith("'VFUNARY0'"):
+            instrObj.rs1 = None
+            if rs1 == 0b00000:
+                instrObj.instr_name = "vfcvt.xu.f.v"
+            elif rs1 == 0b00001:
+                instrObj.instr_name = "vfcvt.x.f.v"
+            elif rs1 == 0b00010:
+                instrObj.instr_name = "vfcvt.f.xu.v"
+            elif rs1 == 0b00011:
+                instrObj.instr_name = "vfcvt.f.x.v"
+            elif rs1 == 0b00110:
+                instrObj.instr_name = "vfcvt.rtz.xu.f.v"
+            elif rs1 == 0b00111:
+                instrObj.instr_name = "vfcvt.rtz.x.f.v"
+            elif rs1 == 0b01000:
+                instrObj.instr_name = "vfwcvt.xu.f.v"
+            elif rs1 == 0b01001:
+                instrObj.instr_name = "vfwcvt.x.f.v"
+            elif rs1 == 0b01010:
+                instrObj.instr_name = "vfwcvt.f.xu.v"
+            elif rs1 == 0b01011:
+                instrObj.instr_name = "vfwcvt.f.x.v"
+            elif rs1 == 0b01100:
+                instrObj.instr_name = "vfwcvt.f.f.v"
+            elif rs1 == 0b01101:
+                instrObj.instr_name = "vfwcvt.rtz.xu.f.v"
+            elif rs1 == 0b01111:
+                instrObj.instr_name = "vfwcvt.rtz.x.f.v"
+            elif rs1 == 0b10000:
+                instrObj.instr_name = "vfncvt.xu.f.w"
+            elif rs1 == 0b10001:
+                instrObj.instr_name = "vfncvt.x.f.w"
+            elif rs1 == 0b10010:
+                instrObj.instr_name = "vfncvt.f.xu.w"
+            elif rs1 == 0b10011:
+                instrObj.instr_name = "vfncvt.f.x.w"
+            elif rs1 == 0b10100:
+                instrObj.instr_name = "vfncvt.f.f.w"
+            elif rs1 == 0b10101:
+                instrObj.instr_name = "vfncvt.rod.f.f.w"
+            elif rs1 == 0b10110:
+                instrObj.instr_name = "vfncvt.rtz.xu.f.w"
+            elif rs1 == 0b10111:
+                instrObj.instr_name = "vfncvt.rtz.x.f.w"
+        elif instrObj.instr_name.startswith("VWXUNARY0"):
+            instrObj.rs1 = None
+            if rs1 == 0b00000:
+                instrObj.instr_name = "vmv.x.s"
+            elif rs1 == 0b10000:
+                instrObj.instr_name = "vpopc.m"
+            elif rs1 == 0b10001:
+                instrObj.instr_name = "vfirst.m"
+        elif instrObj.instr_name.startswith("VMUNARY0"):
+            instrObj.rs1 = None
+            if rs1 == 0b00001:
+                instrObj.instr_name = "vmsbf.m"
+            elif rs1 == 0b00010:
+                instrObj.instr_name = "vmsof.m"
+            elif rs1 == 0b00011:
+                instrObj.instr_name = "vmsif.m"
+            elif rs1 == 0b10000:
+                instrObj.instr_name = "viota.m"
+            elif rs1 == 0b10001:
+                instrObj.instr_name = "vid.m"
+        elif instrObj.instr_name.startswith("VW_RFUNARY0"):
+            if rs1 == 0:
+                instrObj.rs1 = None
+                instrObj.instr_name = "vfmv.f.s"
+            elif rs2 == 0:
+                instrObj.rs2 = None
+                instrObj.instr_name = "vfmv.s.f"
+        elif instrObj.instr_name.startswith("vcompress"):
+            instrObj.instr_name = "vcompress.vm"
+        elif instrObj.instr_name.startswith("vmvnr"):
+            nf = imm & 0b00111
+            if nf == 1:
+                instrObj.instr_name = "vmv1r.v"
+            elif nf == 2:
+                instrObj.instr_name = "vmv2r.v"
+            elif nf == 4:
+                instrObj.instr_name = "vmv4r.v"
+            elif nf == 8:
+                instrObj.instr_name = "vmv8r.v"
+
+        return instrObj
+
+    def flwfld_vload(self, instrObj):
+        width = (instrObj.instr & self.FUNCT3_MASK) >> 12
+        if width == 0b001 or width == 0b010 or width == 0b011 or width == 0b100:
+            return self.flw_fld(instrObj)
+
+        instr = instrObj.instr
+        rd = (instr & self.RD_MASK) >> 7
+        rs1 = (instr & self.RS1_MASK) >> 15
+        rs2 = (instr & self.RS2_MASK) >> 20
+        l_sumop = (instr & self.RS2_MASK) >> 20
+        imm = (instr & self.RS1_MASK) >> 15
+        vm = (instr >> 25) & 1
+        nf = (instr >> 29) & 7
+        nfields = nf + 1
+        mop = (instr >> 26) & 3
+
+        if mop == 0b00:
+            instrObj.rd = (rd, 'v')
+            instrObj.rs1 = (rs1, 'x')
+            instrObj.vm = vm
+            if l_sumop == 0b00000:
+                if nfields == 1:
+                    if width == 0b000:
+                        instrObj.instr_name = 'vle8.v'
+                    elif width == 0b101:
+                        instrObj.instr_name = 'vle16.v'
+                    elif width == 0b110:
+                        instrObj.instr_name = 'vle32.v'
+                    elif width == 0b111:
+                        instrObj.instr_name = 'vle64.v'
+                elif nfields > 1:
+                    if width == 0b000:
+                        instrObj.instr_name = 'vlseg' + str(nfields) + 'e8.v'
+                    elif width == 0b101:
+                        instrObj.instr_name = 'vlseg' + str(nfields) + 'e16.v'
+                    elif width == 0b110:
+                        instrObj.instr_name = 'vlseg' + str(nfields) + 'e32.v'
+                    elif width == 0b111:
+                        instrObj.instr_name = 'vlseg' + str(nfields) + 'e64.v'
+            elif l_sumop == 0b01000:
+                if nfields == 1:
+                    if width == 0b000:
+                        instrObj.instr_name = 'vl1re8.v'
+                    elif width == 0b101:
+                        instrObj.instr_name = 'vl1re16.v'
+                    elif width == 0b110:
+                        instrObj.instr_name = 'vl1re32.v'
+                    elif width == 0b111:
+                        instrObj.instr_name = 'vl1re64.v' 
+                elif nfields == 2:
+                    if width == 0b000:
+                        instrObj.instr_name = 'vl2re8.v'
+                    elif width == 0b101:
+                        instrObj.instr_name = 'vl2re16.v'
+                    elif width == 0b110:
+                        instrObj.instr_name = 'vl2re32.v'
+                    elif width == 0b111:
+                        instrObj.instr_name = 'vl2re64.v'
+                elif nfields == 4:
+                    if width == 0b000:
+                        instrObj.instr_name = 'vl4re8.v'
+                    elif width == 0b101:
+                        instrObj.instr_name = 'vl4re16.v'
+                    elif width == 0b110:
+                        instrObj.instr_name = 'vl4re32.v'
+                    elif width == 0b111:
+                        instrObj.instr_name = 'vl4re64.v'
+                elif nfields == 8:
+                    if width == 0b000:
+                        instrObj.instr_name = 'vl8re8.v'
+                    elif width == 0b101:
+                        instrObj.instr_name = 'vl8re16.v'
+                    elif width == 0b110:
+                        instrObj.instr_name = 'vl8re32.v'
+                    elif width == 0b111:
+                        instrObj.instr_name = 'vl8re64.v'
+            elif l_sumop == 0b01011:
+                if width == 0b000:
+                    instrObj.instr_name = 'vlm8.v'
+            elif l_sumop == 0b10000:
+                if width == 0b000:
+                    instrObj.instr_name = 'vle8ff.v'
+                elif width == 0b101:
+                    instrObj.instr_name = 'vle16ff.v'
+                elif width == 0b110:
+                    instrObj.instr_name = 'vle32ff.v'
+                elif width == 0b111:
+                    instrObj.instr_name = 'vle64ff.v'
+        elif mop == 0b01:
+            instrObj.rd = (rd, 'v')
+            instrObj.rs1 = (rs1, 'x')
+            instrObj.rs2 = (rs2, 'v')
+            instrObj.vm = vm
+            if nfields == 1:
+                if width == 0b000:
+                    instrObj.instr_name = 'vluxei8.v'
+                elif width == 0b101:
+                    instrObj.instr_name = 'vluxei16.v'
+                elif width == 0b110:
+                    instrObj.instr_name = 'vluxei32.v'
+                elif width == 0b111:
+                    instrObj.instr_name = 'vluxei64.v'
+            elif nfields > 1:
+                if width == 0b000:
+                    instrObj.instr_name = 'vluxseg' + str(nfields) + 'ei8.v'
+                elif width == 0b101:
+                    instrObj.instr_name = 'vluxseg' + str(nfields) + 'ei16.v'
+                elif width == 0b110:
+                    instrObj.instr_name = 'vluxseg' + str(nfields) + 'ei32.v'
+                elif width == 0b111:
+                    instrObj.instr_name = 'vluxseg' + str(nfields) + 'ei64.v'
+        elif mop == 0b10:
+            instrObj.rd = (rd, 'v')
+            instrObj.rs1 = (rs1, 'x')
+            instrObj.rs2 = (rs2, 'x')
+            instrObj.vm = vm
+            if nfields == 1:
+                if width == 0b000:
+                    instrObj.instr_name = 'vlse8.v'
+                elif width == 0b101:
+                    instrObj.instr_name = 'vlse16.v'
+                elif width == 0b110:
+                    instrObj.instr_name = 'vlse32.v'
+                elif width == 0b111:
+                    instrObj.instr_name = 'vlse64.v'
+            elif nfields > 1:
+                if width == 0b000:
+                    instrObj.instr_name = 'vlsseg' + str(nfields) + 'e8.v'
+                elif width == 0b101:
+                    instrObj.instr_name = 'vlsseg' + str(nfields) + 'e16.v'
+                elif width == 0b110:
+                    instrObj.instr_name = 'vlsseg' + str(nfields) + 'e32.v'
+                elif width == 0b111:
+                    instrObj.instr_name = 'vlsseg' + str(nfields) + 'e64.v'
+        elif mop == 0b11:
+            instrObj.rd = (rd, 'v')
+            instrObj.rs1 = (rs1, 'x')
+            instrObj.rs2 = (rs2, 'v')
+            instrObj.vm = vm
+            if nfields == 1:
+                if width == 0b000:
+                    instrObj.instr_name = 'vloxei8.v'
+                elif width == 0b101:
+                    instrObj.instr_name = 'vloxei16.v'
+                elif width == 0b110:
+                    instrObj.instr_name = 'vloxei32.v'
+                elif width == 0b111:
+                    instrObj.instr_name = 'vloxei64.v'
+            elif nfields > 1:
+                if width == 0b000:
+                    instrObj.instr_name = 'vloxseg' + str(nfields) + 'ei8.v'
+                elif width == 0b0101:
+                    instrObj.instr_name = 'vloxseg' + str(nfields) + 'ei16.v'
+                elif width == 0b0110:
+                    instrObj.instr_name = 'vloxseg' + str(nfields) + 'ei32.v'
+                elif width == 0b0111:
+                    instrObj.instr_name = 'vloxseg' + str(nfields) + 'ei64.v'
+
+        return instrObj
+
 
     def parseCompressedInstruction(self, instrObj_temp):
         ''' Parse a compressed instruction
