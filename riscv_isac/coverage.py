@@ -563,7 +563,7 @@ def simd_val_unpack(val_comb, op_width, op_name, val, local_dict):
     if simd_size == op_width:
         local_dict[f"{op_name}_val"]=elm_val
 
-def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, vlen, addr_pairs, sig_addrs, stats, arch_state, csr_regfile, result_count, no_count):
+def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, vlen, vsew, addr_pairs, sig_addrs, stats, arch_state, csr_regfile, result_count, no_count):
 
     '''
     This function checks if the current instruction under scrutiny matches a
@@ -1091,7 +1091,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, vlen, addr
         cgf_queue.close()
         stats_queue.close()
 
-def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xlen, vlen, addr_pairs
+def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xlen, vlen, vsew, addr_pairs
         , dump, cov_labels, sig_addrs, window_size, no_count=False, procs=1):
     '''Compute the Coverage'''
 
@@ -1193,7 +1193,7 @@ def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xle
         process_list.append(
                         mp.Process(target=compute_per_line, 
                                 args=(queue_list[i], event_list[i], cgf_queue_list[i], stats_queue_list[i],
-                                    chunks[i], xlen, vlen, addr_pairs, sig_addrs,
+                                    chunks[i], xlen, vlen, vsew, addr_pairs, sig_addrs,
                                     stats, 
                                     arch_state, 
                                     csr_regfile,
