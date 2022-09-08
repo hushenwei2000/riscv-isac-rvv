@@ -1769,10 +1769,10 @@ class disassembler():
             instrObj.instr_name = 'fmul.d'
         elif funct7 == 0b0001101:
             instrObj.instr_name = 'fdiv.d'
-
+        
         if instrObj.instr_name is not None:
             return instrObj
-
+        
         # fsqrt
         if funct7 == 0b0101100:
             instrObj.instr_name = 'fsqrt.s'
@@ -2527,9 +2527,9 @@ class disassembler():
             elif funct6 == 0b000101:
                 instrObj.instr_name = 'vredmin'
             elif funct6 == 0b000110:
-                instrObj.instr_name = 'vredmax'
-            elif funct6 == 0b000111:
                 instrObj.instr_name = 'vredmaxu'
+            elif funct6 == 0b000111:
+                instrObj.instr_name = 'vredmax'
             elif funct6 == 0b011000:
                 instrObj.instr_name = 'vmandnot'
             elif funct6 == 0b011001:
@@ -2547,7 +2547,7 @@ class disassembler():
             elif funct6 == 0b011111:
                 instrObj.instr_name = 'vmxnor'
             elif funct6 == 0b010000:
-                instrObj.instr_name = 'VWXUNARY0'
+                instrObj.instr_name = 'VWXUNARY0orVRXUNARY0'
             elif funct6 == 0b010100:
                 instrObj.instr_name = 'VMUNARY0'
             elif funct6 == 0b001110:
@@ -2653,7 +2653,7 @@ class disassembler():
 
         # Assign rs1, rs2, rd, imm, suffix of instr_name 
         if funct3 == 0b000: #OPIVV
-            if instrObj.instr_name in ['vnsrl', 'vnsra']:
+            if instrObj.instr_name in ['vnsrl', 'vnsra', 'vnclip', 'vnclipu']:
                 instrObj.instr_name = instrObj.instr_name + ".wv"
             elif instrObj.instr_name.startswith("vwred"):
                 instrObj.instr_name = instrObj.instr_name + ".vs"
@@ -2663,7 +2663,7 @@ class disassembler():
             instrObj.rs2 = (rs2, 'v')
             instrObj.rd = (rd, 'v')
         elif funct3 == 0b011: #OPIVI
-            if instrObj.instr_name in ['vnsrl', 'vnsra']:
+            if instrObj.instr_name in ['vnsrl', 'vnsra', 'vnclip', 'vnclipu']:
                 instrObj.instr_name = instrObj.instr_name + ".wi"
             else:
                 instrObj.instr_name = instrObj.instr_name + ".vi"
@@ -2671,7 +2671,7 @@ class disassembler():
             instrObj.rs2 = (rs2, 'v')
             instrObj.rd = (rd, 'v')
         elif funct3 == 0b100: #OPIVX
-            if instrObj.instr_name in ['vnsrl', 'vnsra']:
+            if instrObj.instr_name in ['vnsrl', 'vnsra', 'vnclip', 'vnclipu']:
                 instrObj.instr_name = instrObj.instr_name + ".wx"
             else:
                 instrObj.instr_name = instrObj.instr_name + ".vx"
@@ -2748,14 +2748,14 @@ class disassembler():
         elif instrObj.instr_name.startswith("vmsbc"):
             if vm == 0:
                 if funct3 == 0b000:
-                    instrObj.instr_name = 'vmadc.vvm'
+                    instrObj.instr_name = 'vmsbc.vvm'
                 elif funct3 == 0b100:
-                    instrObj.instr_name = 'vmadc.vxm'
+                    instrObj.instr_name = 'vmsbc.vxm'
             elif vm == 1:
                 if funct3 == 0b000:
-                    instrObj.instr_name = 'vmadc.vv'
+                    instrObj.instr_name = 'vmsbc.vv'
                 elif funct3 == 0b100:
-                    instrObj.instr_name = 'vmadc.vx'
+                    instrObj.instr_name = 'vmsbc.vx'
         elif instrObj.instr_name.startswith("vext"):
             instrObj.rs1 = None
             if rs1 == 0b00010:
@@ -2844,14 +2844,19 @@ class disassembler():
                 instrObj.instr_name = "vfncvt.rtz.xu.f.w"
             elif rs1 == 0b10111:
                 instrObj.instr_name = "vfncvt.rtz.x.f.w"
-        elif instrObj.instr_name.startswith("VWXUNARY0"):
-            instrObj.rs1 = None
-            if rs1 == 0b00000:
-                instrObj.instr_name = "vmv.x.s"
-            elif rs1 == 0b10000:
-                instrObj.instr_name = "vpopc.m"
-            elif rs1 == 0b10001:
-                instrObj.instr_name = "vfirst.m"
+        elif instrObj.instr_name.startswith("VWXUNARY0orVRXUNARY0"):
+            if rs2 == 0b00000:
+                instrObj.instr_name = "vmv.s.x"
+                instrObj.rs2= None
+            else:
+                instrObj.rs1 = None
+                instrObj.rd = (rd, 'x')
+                if rs1 == 0b00000:
+                    instrObj.instr_name = "vmv.x.s"
+                elif rs1 == 0b10000:
+                    instrObj.instr_name = "vpopc.m"
+                elif rs1 == 0b10001:
+                    instrObj.instr_name = "vfirst.m"
         elif instrObj.instr_name.startswith("VMUNARY0"):
             instrObj.rs1 = None
             if rs1 == 0b00001:

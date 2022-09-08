@@ -133,7 +133,7 @@ def cli(verbose):
 )
 def coverage(elf,trace_file, window_size, cgf_file, detailed,parser_name, decoder_name, parser_path, decoder_path,output_file, test_label,
         sig_label, dump,cov_label, xlen, vlen, vsew, no_count, procs):
-    isac(output_file,elf,trace_file, window_size, expand_cgf(cgf_file,int(xlen)), parser_name, decoder_name, parser_path, decoder_path, detailed, test_label,
+    isac(output_file,elf,trace_file, window_size, expand_cgf(cgf_file,int(xlen), int(vlen), int(vsew)), parser_name, decoder_name, parser_path, decoder_path, detailed, test_label,
             sig_label, dump, cov_label, int(xlen), int(vlen), int(vsew), no_count, procs)
 
 

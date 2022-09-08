@@ -688,23 +688,24 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, vlen, vsew
                 if instr.instr_name in ["fmv.w.x"]:
                     rs1_val = '0x' + (arch_state.x_rf[nxf_rs1]).lower()
             elif rs1_type == 'f':
-                rs1_val = struct.unpack(sgn_sz, bytes.fromhex(arch_state.f_rf[nxf_rs1]))[0]
                 if instr.instr_name in ["fadd.s","fsub.s","fmul.s","fdiv.s","fsqrt.s","fmadd.s","fmsub.s","fnmadd.s","fnmsub.s","fmax.s","fmin.s","feq.s","flt.s","fle.s","fmv.x.w","fmv.w.x","fcvt.wu.s","fcvt.s.wu","fcvt.w.s","fcvt.s.w","fsgnj.s","fsgnjn.s","fsgnjx.s","fclass.s"] or instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + (arch_state.f_rf[nxf_rs1]).lower()
                 else:
+                    print("694::", mnemonic, instr.instr_name, rs1, rs2, arch_state.f_rf[nxf_rs1])
                     rs1_val = struct.unpack(
                         sgn_sz, bytes.fromhex(arch_state.f_rf[nxf_rs1]))[0]
             elif rs1_type == 'v':
-                element_str = arch_state.v_rf[nxf_rs1][-8:]  # VSEW=32
+                vsew_bytes = int(vsew / 4)
+                element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bytes):]
                 # Process Floating-Points Operands
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + element_str.upper()
                 # Process Integer Operands, Sign-Extend to XLEN
                 else:
                     if(element_str[0] >= '0' and element_str[0] <= '7'):
-                        element_str = "00000000" + element_str
+                        element_str = "0" * (16 - vsew_bytes) + element_str
                     else:
-                        element_str = "ffffffff" + element_str
+                        element_str = "f" * (16 - vsew_bytes) + element_str
                     rs1_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
 
             if instr.instr_name in unsgn_rs2:
@@ -721,16 +722,17 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, vlen, vsew
                 if instr.instr_name in ["fadd.s","fsub.s","fmul.s","fdiv.s","fmadd.s","fmsub.s","fnmadd.s","fnmsub.s","fmax.s","fmin.s","feq.s","flt.s","fle.s","fsgnj.s","fsgnjn.s","fsgnjx.s"]:
                     rs2_val = '0x' + (arch_state.f_rf[nxf_rs2]).lower()
             elif rs2_type == 'v':
-                element_str = arch_state.v_rf[nxf_rs2][-8:]
+                vsew_bytes = int(vsew / 4)
+                element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bytes):]
                 # Process Floating-Points Operands
                 if instr.instr_name.startswith("vf"):
                     rs2_val = '0x' + element_str.upper()
                 # Process Integer Operands, Sign-Extend to XLEN
                 else:
                     if(element_str[0] >= '0' and element_str[0] <= '7'):
-                        element_str = "00000000" + element_str
+                        element_str = "0" * (16 - vsew_bytes) + element_str
                     else:
-                        element_str = "ffffffff" + element_str
+                        element_str = "f" * (16 - vsew_bytes) + element_str
                     rs2_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
 
             sig_update = False
@@ -761,7 +763,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, vlen, vsew
 
             arch_state.pc = instr.instr_addr
 
-             # Vector-load instrcutions have different imm_val for different types of load
+            # Vector-load instrcutions have different imm_val for different types of load
             if instr.instr_name.startswith("vl"):
                 if instr.rs2 is None:  # Unit-Strided
                     imm_val = 0
@@ -890,6 +892,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, vlen, vsew
                                     stats.covpt.append('rd : ' + 'v'+str(rd))
                                     value['rd']['v'+str(rd)] += 1
 
+                                # print("Start eval(), rs1 = %s, rs2 = %s" % (rs1_val, rs2_val))
                                 if 'op_comb' in value and len(value['op_comb']) != 0 :
                                     for coverpoints in value['op_comb']:
                                         if eval(coverpoints):
@@ -1054,16 +1057,17 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, vlen, vsew
                             stats.ucode_seq = []
 
             if commitvalue is not None:
+                if instr.instr_name.split('.')[0].startswith("v"):
+                    print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
+                        rs2, rs2_val, "\t\t", rd, arch_state.v_rf[int(commitvalue[1])])
+                if instr.instr_name.startswith("csrrw"):
+                    print("fflags Commit Info value: ", commitvalue[2])
                 if rd_type == 'x':
                     arch_state.x_rf[int(commitvalue[1])] =  str(commitvalue[2][2:18])
                 elif rd_type == 'f':
                     arch_state.f_rf[int(commitvalue[1])] =  str(commitvalue[2][2:])
                 elif rd_type == 'v':
                     arch_state.v_rf[int(commitvalue[1])] = str(commitvalue[2][2:])
-                    instr_0 = instr.instr_name.split('.')[0]
-                    if instr_0.startswith("v") and not instr_0 in ['vmv', 'vfmv']:
-                        print("Commit Info: ", instr.instr_name, rs1_val,
-                            rs2_val, arch_state.v_rf[int(commitvalue[1])])
 
             csr_commit = instr.csr_commit
             if csr_commit is not None:
