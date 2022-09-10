@@ -322,6 +322,7 @@ class archState:
 
         if flen == 32:
             self.f_rf = ['00000000']*32
+            self.fcsr = 0
         else:
             self.f_rf = ['0000000000000000']*32
             self.fcsr = 0
@@ -734,7 +735,8 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
             elif rs1_type == 'x':
                 rs1_val = struct.unpack(sgn_sz, bytes.fromhex(arch_state.x_rf[nxf_rs1]))[0]
             elif rs1_type == 'f':
-                rs1_val = struct.unpack(fsgn_sz, bytes.fromhex(arch_state.f_rf[nxf_rs1]))[0]
+                freg_content = arch_state.f_rf[nxf_rs1][int(-flen/4):]
+                rs1_val = struct.unpack(fsgn_sz, bytes.fromhex(freg_content))[0]
                 define_sem(flen,iflen,rs1_val,"1",instr_vars)
             elif rs1_type == 'v':
                 vsew_bytes = int(vsew / 4)
@@ -840,6 +842,8 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
             instr_vars['xlen'] = xlen
             instr_vars['flen'] = flen
             instr_vars['iflen'] = iflen
+            instr_vars['vsew'] = vsew
+            instr_vars['vlen'] = vlen
 
             local_dict = {}
             for i in csr_regfile.csr_regs:
@@ -1055,9 +1059,6 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                             stats.ucode_seq = []
 
             if commitvalue is not None:
-                if instr.instr_name.split('.')[0].startswith("v"):
-                    print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
-                        rs2, rs2_val, "\t\t", rd, arch_state.v_rf[int(commitvalue[1])])
                 if instr.instr_name.startswith("csrrw"):
                     print("fflags Commit Info value: ", commitvalue[2])
                 if rd_type == 'x':
@@ -1066,6 +1067,9 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                     arch_state.f_rf[int(commitvalue[1])] =  str(commitvalue[2][2:])
                 elif rd_type == 'v':
                     arch_state.v_rf[int(commitvalue[1])] = str(commitvalue[2][2:])
+                if instr.instr_name.split('.')[0].startswith("v"):
+                    print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
+                        rs2, rs2_val, "\t\t", rd, arch_state.v_rf[int(commitvalue[1])])
 
             csr_commit = instr.csr_commit
             if csr_commit is not None:

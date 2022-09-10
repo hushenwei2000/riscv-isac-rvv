@@ -314,17 +314,17 @@ def ibm_b1(flen, iflen, opcode, ops, rvv_sew = -1):
             sys.exit(1)
     else:
         # 暂不支持测试非数（Nan），因为Spike的浮点数运算一旦遇到非数一定返回False
-		if rvv_sew == 32:
-			basic_types = fzero + fminsubnorm + [fsubnorm[0], fsubnorm[3]] +\
+        if rvv_sew == 32:
+            basic_types = fzero + fminsubnorm + [fsubnorm[0], fsubnorm[3]] +\
 				fmaxsubnorm + fminnorm + [fnorm[0], fnorm[3]] + fmaxnorm + \
 				fone
-		elif rvv_sew == 64:
-			basic_types = dzero + dminsubnorm + [dsubnorm[0], dsubnorm[1]] +\
+        elif rvv_sew == 64:
+            basic_types = dzero + dminsubnorm + [dsubnorm[0], dsubnorm[1]] +\
 				dmaxsubnorm + dminnorm + [dnorm[0], dnorm[1]] + dmaxnorm + \
 				done
-		else:
-			logger.error('Invalid flen value!')
-			sys.exit(1)
+        else:
+            logger.error('Invalid flen value!')
+            sys.exit(1)
 
     # the following creates a cross product for ops number of variables
     b1_comb = list(itertools.product(*ops*[basic_types]))
@@ -333,8 +333,8 @@ def ibm_b1(flen, iflen, opcode, ops, rvv_sew = -1):
         cvpt = ""
         for x in range(1, ops+1):
             if x != 1:
-				cvpt += " and "
-			if rvv_sew != -1:
+                cvpt += " and "
+            if rvv_sew != -1:
                 cvpt += 'rs'+str(x)+'_val=='+str(c[x-1]) # uncomment this if you want rs1_val instead of individual fields
             else:
                 cvpt += (extract_fields(iflen,c[x-1],str(x))) + " and "

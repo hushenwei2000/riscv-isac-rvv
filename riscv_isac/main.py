@@ -174,9 +174,19 @@ def coverage(elf,trace_file, window_size, cgf_file, detailed,parser_name, decode
         help="FLEN value for the ISA."
 )
 @click.option('--xlen','-x',type=click.Choice(['32','64']),default='32',help="XLEN value for the ISA.")
-def merge(files,detailed,p,cgf_file,output_file,flen,xlen):
+@click.option('--vlen','-v',
+        type=click.Choice(['32','64','128']),
+        default='128',
+        help="VLEN value for the Vector-Register Length."
+)
+@click.option('--vsew',
+        type=click.Choice(['8', '16', '32', '64', '128']),
+        default='32',
+        help="Selected Element Width for Vector Extension."
+)
+def merge(files,detailed,p,cgf_file,output_file,flen,xlen,vlen,vsew):
     rpt = cov.merge_coverage(
-            files,expand_cgf(cgf_file,int(xlen),int(flen)),detailed,p)
+            files,expand_cgf(cgf_file,int(xlen),int(flen),int(vlen),int(vsew)),detailed,p)
     if output_file is None:
         logger.info('Coverage Report:')
         logger.info('\n\n' + rpt)
@@ -202,10 +212,20 @@ def merge(files,detailed,p,cgf_file,output_file,flen,xlen):
     )
 @click.option('--xlen','-x',type=click.Choice(['32','64']),default='32',help="XLEN value for the ISA.")
 @click.option('--flen','-f',type=click.Choice(['32','64']),default='32',help="FLEN value for the ISA.")
-def normalize(cgf_file,output_file,xlen,flen):
+@click.option('--vlen','-v',
+        type=click.Choice(['32','64','128']),
+        default='128',
+        help="VLEN value for the Vector-Register Length."
+)
+@click.option('--vsew',
+        type=click.Choice(['8', '16', '32', '64', '128']),
+        default='32',
+        help="Selected Element Width for Vector Extension."
+)
+def normalize(cgf_file,output_file,xlen,flen,vlen,vsew):
     logger.info("Writing normalized CGF to "+str(output_file))
     with open(output_file,"w") as outfile:
-        utils.dump_yaml(expand_cgf(cgf_file,int(xlen),int(flen)),outfile)
+        utils.dump_yaml(expand_cgf(cgf_file,int(xlen),int(flen),int(vlen),int(vsew)),outfile)
 
 @cli.command(help = 'Setup the plugin which uses the information from RISCV Opcodes repository to decode.')
 @click.option('--url',
