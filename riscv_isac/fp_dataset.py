@@ -335,7 +335,7 @@ def ibm_b1(flen, iflen, opcode, ops, rvv_sew = -1):
             if x != 1:
                 cvpt += " and "
             if rvv_sew != -1:
-                cvpt += 'rs'+str(x)+'_val=='+str(c[x-1]) # uncomment this if you want rs1_val instead of individual fields
+                cvpt += 'rs'+str(x)+'_val=='+"'"+str(c[x-1])+"'" # uncomment this if you want rs1_val instead of individual fields
             else:
                 cvpt += (extract_fields(iflen,c[x-1],str(x))) + " and "
         if opcode.split('.')[0] in ["fadd","fsub","fmul","fdiv","fsqrt","fmadd","fnmadd","fmsub","fnmsub","fcvt","fmv"]:
