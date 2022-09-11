@@ -2446,6 +2446,8 @@ class disassembler():
                     instrObj.instr_name = 'vrgatherei16'
                 else:
                     instrObj.instr_name = 'vslideup'
+            elif funct6 == 0b001111:
+                instrObj.instr_name = 'vslidedown'
             elif funct6 == 0b001100:
                 instrObj.instr_name = 'vrgather'
             elif funct6 == 0b000111:
@@ -2663,7 +2665,7 @@ class disassembler():
             instrObj.rs2 = (rs2, 'v')
             instrObj.rd = (rd, 'v')
         elif funct3 == 0b011: #OPIVI
-            if instrObj.instr_name in ['vnsrl', 'vnsra', 'vnclip', 'vnclipu']:
+            if instrObj.instr_name in ['vnsrl', 'vnsra', 'vnclip', 'vnclipu', 'vmvnr']:
                 instrObj.instr_name = instrObj.instr_name + ".wi"
             else:
                 instrObj.instr_name = instrObj.instr_name + ".vi"
@@ -2770,6 +2772,15 @@ class disassembler():
                 instrObj.instr_name = 'vzext.vf2'
             elif rs1 == 0b00111:
                 instrObj.instr_name = 'vsext.vf2'
+        elif instrObj.instr_name.startswith("vmvnr"):
+            if imm == 0b00000:
+                instrObj.instr_name = "vmv1r.v"
+            elif imm == 0b00001:
+                instrObj.instr_name = "vmv2r.v"
+            elif imm == 0b00011:
+                instrObj.instr_name = "vmv4r.v"
+            elif imm == 0b00111:
+                instrObj.instr_name = "vmv8r.v"
         elif instrObj.instr_name.startswith("vmv"):
             instrObj.rs2 = None
             if funct3 == 0b000:
@@ -2872,22 +2883,14 @@ class disassembler():
         elif instrObj.instr_name.startswith("VW_RFUNARY0"):
             if rs1 == 0:
                 instrObj.rs1 = None
+                instrObj.rd = (rd, 'f')
                 instrObj.instr_name = "vfmv.f.s"
             elif rs2 == 0:
                 instrObj.rs2 = None
                 instrObj.instr_name = "vfmv.s.f"
         elif instrObj.instr_name.startswith("vcompress"):
             instrObj.instr_name = "vcompress.vm"
-        elif instrObj.instr_name.startswith("vmvnr"):
-            nf = imm & 0b00111
-            if nf == 1:
-                instrObj.instr_name = "vmv1r.v"
-            elif nf == 2:
-                instrObj.instr_name = "vmv2r.v"
-            elif nf == 4:
-                instrObj.instr_name = "vmv4r.v"
-            elif nf == 8:
-                instrObj.instr_name = "vmv8r.v"
+        
 
         return instrObj
 

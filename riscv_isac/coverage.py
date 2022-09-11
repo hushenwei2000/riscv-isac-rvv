@@ -738,6 +738,8 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 freg_content = arch_state.f_rf[nxf_rs1][int(-flen/4):]
                 rs1_val = struct.unpack(fsgn_sz, bytes.fromhex(freg_content))[0]
                 define_sem(flen,iflen,rs1_val,"1",instr_vars)
+                if instr.instr_name.startswith("vf"):
+                    rs1_val = '0x' + freg_content.upper()
             elif rs1_type == 'v':
                 vsew_bytes = int(vsew / 4)
                 element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bytes):]
@@ -762,8 +764,11 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
             elif rs2_type == 'x':
                 rs2_val = struct.unpack(sgn_sz, bytes.fromhex(arch_state.x_rf[nxf_rs2]))[0]
             elif rs2_type == 'f':
-                rs2_val = struct.unpack(fsgn_sz, bytes.fromhex(arch_state.f_rf[nxf_rs2]))[0]
+                freg_content = arch_state.f_rf[nxf_rs1][int(-flen/4):]
+                rs2_val = struct.unpack(fsgn_sz, bytes.fromhex(freg_content))[0]
                 define_sem(flen,iflen,rs2_val,"2",instr_vars)
+                if instr.instr_name.startswith("vf"):
+                    rs1_val = '0x' + bytes.fromhex(arch_state.f_rf[nxf_rs2]).upper()
             elif rs2_type == 'v':
                 vsew_bytes = int(vsew / 4)
                 element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bytes):]
