@@ -19,7 +19,7 @@ class disassembler():
             0b0111011: self.rv64i_arith_ops,
             0b0101111: self.rv64_rv32_atomic_ops,
             0b0000111: self.flwfld_vload,
-            0b0100111: self.fsw_fsd,
+            0b0100111: self.fswfsd_vstore,
             0b1000011: self.fmadd,
             0b1000111: self.fmsub,
             0b1001011: self.fnmsub,
@@ -1648,6 +1648,127 @@ class disassembler():
 
         return instrObj
 
+    def fswfsd_vstore(self, instrObj):
+        width = (instrObj.instr & self.FUNCT3_MASK) >> 12
+        if width == 0b001 or width == 0b010 or width == 0b011 or width == 0b100:
+            return self.fsw_fsd(instrObj)
+        instr = instrObj.instr
+        rd = (instr & self.RD_MASK) >> 7
+        rs1 = (instr & self.RS1_MASK) >> 15
+        rs2 = (instr & self.RS2_MASK) >> 20
+        l_sumop = (instr & self.RS2_MASK) >> 20
+        imm = (instr & self.RS1_MASK) >> 15
+        vm = (instr >> 25) & 1
+        nf = (instr >> 29) & 7
+        nfields = nf + 1
+        mop = (instr >> 26) & 3
+
+        if mop == 0b00:
+            instrObj.rd = (rd, 'v')
+            instrObj.rs1 = (rs1, 'x')
+            instrObj.vm = vm
+            if l_sumop == 0b00000:
+                if nfields == 1:
+                    if width == 0b000:
+                        instrObj.instr_name = 'vse8.v'
+                    elif width == 0b101:
+                        instrObj.instr_name = 'vse16.v'
+                    elif width == 0b110:
+                        instrObj.instr_name = 'vse32.v'
+                    elif width == 0b111:
+                        instrObj.instr_name = 'vse64.v'
+                elif nfields > 1:
+                    if width == 0b000:
+                        instrObj.instr_name = 'vsseg' + str(nfields) + 'e8.v'
+                    elif width == 0b101:
+                        instrObj.instr_name = 'vsseg' + str(nfields) + 'e16.v'
+                    elif width == 0b110:
+                        instrObj.instr_name = 'vsseg' + str(nfields) + 'e32.v'
+                    elif width == 0b111:
+                        instrObj.instr_name = 'vsseg' + str(nfields) + 'e64.v'
+            elif l_sumop == 0b01000:
+                if nfields == 1:
+                    instrObj.instr_name = 'vs1r.v'
+                elif nfields == 2:
+                    instrObj.instr_name = 'vs2r.v'
+                elif nfields == 4:
+                    instrObj.instr_name = 'vs4r.v'
+                elif nfields == 8:
+                    instrObj.instr_name = 'vs8r.v'
+            elif l_sumop == 0b01011:
+                if width == 0b000:
+                    instrObj.instr_name = 'vsm8.v'
+        elif mop == 0b01:
+            instrObj.rd = (rd, 'v')
+            instrObj.rs1 = (rs1, 'x')
+            instrObj.rs2 = (rs2, 'v')
+            instrObj.vm = vm
+            if nfields == 1:
+                if width == 0b000:
+                    instrObj.instr_name = 'vsuxei8.v'
+                elif width == 0b101:
+                    instrObj.instr_name = 'vsuxei16.v'
+                elif width == 0b110:
+                    instrObj.instr_name = 'vsuxei32.v'
+                elif width == 0b111:
+                    instrObj.instr_name = 'vsuxei64.v'
+            elif nfields > 1:
+                if width == 0b000:
+                    instrObj.instr_name = 'vsuxseg' + str(nfields) + 'ei8.v'
+                elif width == 0b101:
+                    instrObj.instr_name = 'vsuxseg' + str(nfields) + 'ei16.v'
+                elif width == 0b110:
+                    instrObj.instr_name = 'vsuxseg' + str(nfields) + 'ei32.v'
+                elif width == 0b111:
+                    instrObj.instr_name = 'vsuxseg' + str(nfields) + 'ei64.v'
+        elif mop == 0b10:
+            instrObj.rd = (rd, 'v')
+            instrObj.rs1 = (rs1, 'x')
+            instrObj.rs2 = (rs2, 'x')
+            instrObj.vm = vm
+            if nfields == 1:
+                if width == 0b000:
+                    instrObj.instr_name = 'vsse8.v'
+                elif width == 0b101:
+                    instrObj.instr_name = 'vsse16.v'
+                elif width == 0b110:
+                    instrObj.instr_name = 'vsse32.v'
+                elif width == 0b111:
+                    instrObj.instr_name = 'vsse64.v'
+            elif nfields > 1:
+                if width == 0b000:
+                    instrObj.instr_name = 'vssseg' + str(nfields) + 'e8.v'
+                elif width == 0b101:
+                    instrObj.instr_name = 'vssseg' + str(nfields) + 'e16.v'
+                elif width == 0b110:
+                    instrObj.instr_name = 'vssseg' + str(nfields) + 'e32.v'
+                elif width == 0b111:
+                    instrObj.instr_name = 'vssseg' + str(nfields) + 'e64.v'
+        elif mop == 0b11:
+            instrObj.rd = (rd, 'v')
+            instrObj.rs1 = (rs1, 'x')
+            instrObj.rs2 = (rs2, 'v')
+            instrObj.vm = vm
+            if nfields == 1:
+                if width == 0b000:
+                    instrObj.instr_name = 'vsoxei8.v'
+                elif width == 0b101:
+                    instrObj.instr_name = 'vsoxei16.v'
+                elif width == 0b110:
+                    instrObj.instr_name = 'vsoxei32.v'
+                elif width == 0b111:
+                    instrObj.instr_name = 'vsoxei64.v'
+            elif nfields > 1:
+                if width == 0b000:
+                    instrObj.instr_name = 'vsoxseg' + str(nfields) + 'ei8.v'
+                elif width == 0b0101:
+                    instrObj.instr_name = 'vsoxseg' + str(nfields) + 'ei16.v'
+                elif width == 0b0110:
+                    instrObj.instr_name = 'vsoxseg' + str(nfields) + 'ei32.v'
+                elif width == 0b0111:
+                    instrObj.instr_name = 'vsoxseg' + str(nfields) + 'ei64.v'
+        return instrObj
+
     def fmadd(self, instrObj):
         instr = instrObj.instr
         rd = ((instr & self.RD_MASK) >> 7, 'f')
@@ -2881,13 +3002,13 @@ class disassembler():
             elif rs1 == 0b10001:
                 instrObj.instr_name = "vid.m"
         elif instrObj.instr_name.startswith("VW_RFUNARY0"):
-            if rs1 == 0:
+            if rs2 == 0:
+                instrObj.rs2 = None
+                instrObj.instr_name = "vfmv.s.f"
+            elif rs1 == 0:
                 instrObj.rs1 = None
                 instrObj.rd = (rd, 'f')
                 instrObj.instr_name = "vfmv.f.s"
-            elif rs2 == 0:
-                instrObj.rs2 = None
-                instrObj.instr_name = "vfmv.s.f"
         elif instrObj.instr_name.startswith("vcompress"):
             instrObj.instr_name = "vcompress.vm"
         
@@ -2898,7 +3019,6 @@ class disassembler():
         width = (instrObj.instr & self.FUNCT3_MASK) >> 12
         if width == 0b001 or width == 0b010 or width == 0b011 or width == 0b100:
             return self.flw_fld(instrObj)
-
         instr = instrObj.instr
         rd = (instr & self.RD_MASK) >> 7
         rs1 = (instr & self.RS1_MASK) >> 15
@@ -3051,7 +3171,6 @@ class disassembler():
                     instrObj.instr_name = 'vloxseg' + str(nfields) + 'ei32.v'
                 elif width == 0b0111:
                     instrObj.instr_name = 'vloxseg' + str(nfields) + 'ei64.v'
-
         return instrObj
 
 

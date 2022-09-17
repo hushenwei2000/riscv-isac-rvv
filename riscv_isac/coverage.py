@@ -327,8 +327,8 @@ class archState:
             self.f_rf = ['0000000000000000']*32
             self.fcsr = 0
 
-        if vlen == 128:
-            self.v_rf = ['00000000000000000000000000000000']*32
+        if vlen != -1:
+            self.v_rf = ['0' * int(vlen / 4)]*32
             self.vcsr = 0
 
         self.pc = 0
@@ -741,17 +741,17 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + freg_content.upper()
             elif rs1_type == 'v':
-                vsew_bytes = int(vsew / 4)
-                element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bytes):]
+                vsew_bits = int(vsew / 4)
+                element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
                 # Process Floating-Points Operands
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + element_str.upper()
                 # Process Integer Operands, Sign-Extend to XLEN
                 else:
                     if(element_str[0] >= '0' and element_str[0] <= '7'):
-                        element_str = "0" * (16 - vsew_bytes) + element_str
+                        element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
                     else:
-                        element_str = "f" * (16 - vsew_bytes) + element_str
+                        element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str
                     rs1_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
             rs2_val = None
             if instr.instr_name in unsgn_rs2:
@@ -764,23 +764,23 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
             elif rs2_type == 'x':
                 rs2_val = struct.unpack(sgn_sz, bytes.fromhex(arch_state.x_rf[nxf_rs2]))[0]
             elif rs2_type == 'f':
-                freg_content = arch_state.f_rf[nxf_rs1][int(-flen/4):]
+                freg_content = arch_state.f_rf[nxf_rs2][int(-flen/4):]
                 rs2_val = struct.unpack(fsgn_sz, bytes.fromhex(freg_content))[0]
                 define_sem(flen,iflen,rs2_val,"2",instr_vars)
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + bytes.fromhex(arch_state.f_rf[nxf_rs2]).upper()
             elif rs2_type == 'v':
-                vsew_bytes = int(vsew / 4)
-                element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bytes):]
+                vsew_bits = int(vsew / 4)
+                element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bits):]
                 # Process Floating-Points Operands
                 if instr.instr_name.startswith("vf"):
                     rs2_val = '0x' + element_str.upper()
                 # Process Integer Operands, Sign-Extend to XLEN
                 else:
                     if(element_str[0] >= '0' and element_str[0] <= '7'):
-                        element_str = "0" * (16 - vsew_bytes) + element_str
+                        element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
                     else:
-                        element_str = "f" * (16 - vsew_bytes) + element_str
+                        element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str
                     rs2_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
 
             rs3_val = None
@@ -808,7 +808,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
 
             ea_align = None
             # Vector-load instrcutions have different imm_val for different types of load
-            if instr.instr_name.startswith("vl"):
+            if instr.instr_name.startswith("vl") or instr.instr_name.startswith("vs"):
                 if instr.rs2 is None:  # Unit-Strided
                     imm_val = 0
                 elif rs2_type == 'x':  # Strided
@@ -824,10 +824,36 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
             if instr.instr_name == "jalr":
                 ea_align = (rs1_val + imm_val) % 4
 
-            vload_instrs = ['vle8.v', 'vle16.v', 'vle32.v', 'vlse8.v', 'vlse16.v', 'vlse32.v',  'vlseg1e8.v', 'vlseg2e8.v', 'vlseg3e8.v', 'vlseg4e8.v', 'vlseg5e8.v', 'vlseg6e8.v', 'vlseg7e8.v', 'vlseg8e8.v', 'vlseg1e16.v', 'vlseg2e16.v',
-                    'vlseg3e16.v', 'vlseg4e16.v', 'vlseg5e16.v', 'vlseg6e16.v', 'vlseg7e16.v', 'vlseg8e16.v', 'vlseg1e32.v', 'vlseg2e32.v', 'vlseg3e32.v', 'vlseg4e32.v', 'vlseg5e32.v', 'vlseg6e32.v', 'vlseg7e32.v', 'vlseg8e32.v']
-            vload_instrs_double = ['vle64.v', 'vlse64.v', 'vlseg1e64.v', 'vlseg2e64.v', 'vlseg3e64.v',
-                           'vlseg4e64.v', 'vlseg5e64.v', 'vlseg6e64.v', 'vlseg7e64.v', 'vlseg8e64.v']
+            vload_instrs = ['vle8.v', 'vle16.v', 'vle32.v', 'vle8ff.v', 'vle16ff.v', 'vle32ff.v', 'vlse8.v', 'vlse16.v', 'vlse32.v',  'vlseg1e8.v', 'vlseg2e8.v', 'vlseg3e8.v', 'vlseg4e8.v', 'vlseg5e8.v', 'vlseg6e8.v', 'vlseg7e8.v', 'vlseg8e8.v', 'vlseg1e16.v', 'vlseg2e16.v',
+                    'vlseg3e16.v', 'vlseg4e16.v', 'vlseg5e16.v', 'vlseg6e16.v', 'vlseg7e16.v', 'vlseg8e16.v', 'vlseg1e32.v', 'vlseg2e32.v', 'vlseg3e32.v', 'vlseg4e32.v', 'vlseg5e32.v', 'vlseg6e32.v', 'vlseg7e32.v', 'vlseg8e32.v',
+                    'vlsseg2e8.v', 'vlsseg3e8.v', 'vlsseg4e8.v', 'vlsseg5e8.v', 'vlsseg6e8.v', 'vlsseg7e8.v', 'vlsseg8e8.v',
+                    'vlsseg2e16.v', 'vlsseg3e16.v', 'vlsseg4e16.v', 'vlsseg5e16.v', 'vlsseg6e16.v', 'vlsseg7e16.v', 'vlsseg8e16.v',
+                    'vlsseg2e32.v', 'vlsseg3e32.v', 'vlsseg4e32.v', 'vlsseg5e32.v', 'vlsseg6e32.v', 'vlsseg7e32.v', 'vlsseg8e32.v',
+                    'vluxei8.v', 'vluxei16.v', 'vluxei32.v', 
+                    'vluxseg2ei8.v', 'vluxseg3ei8.v', 'vluxseg4ei8.v', 'vluxseg5ei8.v', 'vluxseg6ei8.v', 'vluxseg7ei8.v', 'vluxseg8ei8.v', 
+                    'vluxseg2ei16.v', 'vluxseg3ei16.v', 'vluxseg4ei16.v', 'vluxseg5ei16.v', 'vluxseg6ei16.v', 'vluxseg7ei16.v', 'vluxseg8ei16.v',
+                    'vluxseg2ei32.v', 'vluxseg3ei32.v', 'vluxseg4ei32.v', 'vluxseg5ei32.v', 'vluxseg6ei32.v', 'vluxseg7ei32.v', 'vluxseg8ei32.v',
+                    'vse8.v', 'vse16.v', 'vse32.v', 'vsse8.v', 'vsse16.v', 'vsse32.v',  'vsseg1e8.v', 'vsseg2e8.v', 'vsseg3e8.v', 'vsseg4e8.v', 'vsseg5e8.v', 'vsseg6e8.v', 'vsseg7e8.v', 'vsseg8e8.v', 'vsseg1e16.v', 'vsseg2e16.v',
+                    'vsseg3e16.v', 'vsseg4e16.v', 'vsseg5e16.v', 'vsseg6e16.v', 'vsseg7e16.v', 'vsseg8e16.v', 'vsseg1e32.v', 'vsseg2e32.v', 'vsseg3e32.v', 'vsseg4e32.v', 'vsseg5e32.v', 'vsseg6e32.v', 'vsseg7e32.v', 'vsseg8e32.v',
+                    'vssseg2e8.v', 'vssseg3e8.v', 'vssseg4e8.v', 'vssseg5e8.v', 'vssseg6e8.v', 'vssseg7e8.v', 'vssseg8e8.v',
+                    'vssseg2e16.v', 'vssseg3e16.v', 'vssseg4e16.v', 'vssseg5e16.v', 'vssseg6e16.v', 'vssseg7e16.v', 'vssseg8e16.v',
+                    'vssseg2e32.v', 'vssseg3e32.v', 'vssseg4e32.v', 'vssseg5e32.v', 'vssseg6e32.v', 'vssseg7e32.v', 'vssseg8e32.v',
+                    'vsuxei8.v', 'vsuxei16.v', 'vsuxei32.v', 
+                    'vsuxseg2ei8.v', 'vsuxseg3ei8.v', 'vsuxseg4ei8.v', 'vsuxseg5ei8.v', 'vsuxseg6ei8.v', 'vsuxseg7ei8.v', 'vsuxseg8ei8.v', 
+                    'vsuxseg2ei16.v', 'vsuxseg3ei16.v', 'vsuxseg4ei16.v', 'vsuxseg5ei16.v', 'vsuxseg6ei16.v', 'vsuxseg7ei16.v', 'vsuxseg8ei16.v',
+                    'vsuxseg2ei32.v', 'vsuxseg3ei32.v', 'vsuxseg4ei32.v', 'vsuxseg5ei32.v', 'vsuxseg6ei32.v', 'vsuxseg7ei32.v', 'vsuxseg8ei32.v',
+                    'vs1r.v', 'vs2r.v', 'vs4r.v', 'vs8r.v', 
+                    'vl1re8.v', 'vl2re8.v', 'vl4re8.v', 'vl8re8.v', 'vl2r.v',
+                    'vl1re16.v', 'vl2re16.v', 'vl4re16.v', 'vl8re16.v',
+                    'vl1re32.v', 'vl2re32.v', 'vl4re32.v', 'vl8re32.v' ]
+            vload_instrs_double = ['vle64.v', 'vle64ff.v', 'vlse64.v', 'vlseg1e64.v', 'vlseg2e64.v', 'vlseg3e64.v',
+                           'vlseg4e64.v', 'vlseg5e64.v', 'vlseg6e64.v', 'vlseg7e64.v', 'vlseg8e64.v',
+                           'vluxei64.v', 'vlsseg3e64.v', 'vluxseg3ei64.v',
+                           'vse64.v', 'vsse64.v', 'vsseg1e64.v', 'vsseg2e64.v', 'vsseg3e64.v',
+                           'vsseg4e64.v', 'vsseg5e64.v', 'vsseg6e64.v', 'vsseg7e64.v', 'vsseg8e64.v',
+                           'vsuxei64.v', 'vssseg3e64.v', 'vsuxseg3ei64.v',
+                           'vl2re64.v'
+                           ]
 
             if instr.instr_name in ['sw','sh','sb','lw','lhu','lh','lb','lbu','lwu','flw','fsw'] or instr.instr_name in vload_instrs:
                 ea_align = (rs1_val + imm_val) % 4
@@ -1074,7 +1100,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                     arch_state.v_rf[int(commitvalue[1])] = str(commitvalue[2][2:])
                 if instr.instr_name.split('.')[0].startswith("v"):
                     print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
-                        rs2, rs2_val, "\t\t", rd, arch_state.v_rf[int(commitvalue[1])])
+                        rs2, rs2_val, "\t\t", rd, str(commitvalue[2][2:]))
 
             csr_commit = instr.csr_commit
             if csr_commit is not None:

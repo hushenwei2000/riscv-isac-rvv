@@ -127,12 +127,12 @@ def cli(verbose):
         help = 'Set number of processes to calculate coverage'
 )
 @click.option('--vlen','-v',
-        type=click.Choice(['32','64','128']),
+        type=click.Choice(['32','64','128','256','512','1024','2048','4096','8192']),
         default='128',
         help="VLEN value for the Vector-Register Length."
 )
 @click.option('--vsew',
-        type=click.Choice(['8', '16', '32', '64', '128']),
+        type=click.Choice(['8', '16', '32', '64']),
         default='32',
         help="Selected Element Width for Vector Extension."
 )
@@ -175,12 +175,12 @@ def coverage(elf,trace_file, window_size, cgf_file, detailed,parser_name, decode
 )
 @click.option('--xlen','-x',type=click.Choice(['32','64']),default='32',help="XLEN value for the ISA.")
 @click.option('--vlen','-v',
-        type=click.Choice(['32','64','128']),
+        type=click.Choice(['32','64','128','256','512','1024','2048','4096','8192']),
         default='128',
         help="VLEN value for the Vector-Register Length."
 )
 @click.option('--vsew',
-        type=click.Choice(['8', '16', '32', '64', '128']),
+        type=click.Choice(['8', '16', '32', '64']),
         default='32',
         help="Selected Element Width for Vector Extension."
 )
@@ -213,12 +213,12 @@ def merge(files,detailed,p,cgf_file,output_file,flen,xlen,vlen,vsew):
 @click.option('--xlen','-x',type=click.Choice(['32','64']),default='32',help="XLEN value for the ISA.")
 @click.option('--flen','-f',type=click.Choice(['32','64']),default='32',help="FLEN value for the ISA.")
 @click.option('--vlen','-v',
-        type=click.Choice(['32','64','128']),
+        type=click.Choice(['32','64','128','256','512','1024','2048','4096','8192']),
         default='128',
         help="VLEN value for the Vector-Register Length."
 )
 @click.option('--vsew',
-        type=click.Choice(['8', '16', '32', '64', '128']),
+        type=click.Choice(['8', '16', '32', '64']),
         default='32',
         help="Selected Element Width for Vector Extension."
 )
