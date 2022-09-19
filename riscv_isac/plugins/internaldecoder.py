@@ -2824,6 +2824,8 @@ class disassembler():
         elif funct3 == 0b001: #OPFVV
             if funct6 in [0b110100, 0b110110]: #vfwadd, vfwsub
                 instrObj.instr_name = instrObj.instr_name + ".wv"
+            elif instrObj.instr_name.startswith("vfred") or instrObj.instr_name.startswith("vfwred"):
+                instrObj.instr_name = instrObj.instr_name + ".vs"
             else:
                 instrObj.instr_name = instrObj.instr_name + ".vv"
             instrObj.rs1 = (rs1, 'v')
@@ -2832,8 +2834,6 @@ class disassembler():
         elif funct3 == 0b101: #OPFVF
             if funct6 in [0b110100, 0b110110]: #vfwadd, vfwsub
                 instrObj.instr_name = instrObj.instr_name + ".wf"
-            elif instrObj.instr_name.startswith("vfred") or instrObj.instr_name.startswith("vfwred"):
-                instrObj.instr_name = instrObj.instr_name + ".vs"
             else:
                 instrObj.instr_name = instrObj.instr_name + ".vf"
             instrObj.rs1 = (rs1, 'f')
@@ -3012,7 +3012,6 @@ class disassembler():
         elif instrObj.instr_name.startswith("vcompress"):
             instrObj.instr_name = "vcompress.vm"
         
-
         return instrObj
 
     def flwfld_vload(self, instrObj):

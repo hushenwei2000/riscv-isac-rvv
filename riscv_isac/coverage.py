@@ -1088,7 +1088,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                             stats.covpt = []
                             stats.code_seq = []
                             stats.ucode_seq = []
-
+                            
             if commitvalue is not None:
                 if instr.instr_name.startswith("csrrw"):
                     print("fflags Commit Info value: ", commitvalue[2])
@@ -1098,7 +1098,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                     arch_state.f_rf[int(commitvalue[1])] =  str(commitvalue[2][2:])
                 elif rd_type == 'v':
                     arch_state.v_rf[int(commitvalue[1])] = str(commitvalue[2][2:])
-                if instr.instr_name.split('.')[0].startswith("v"):
+                if instr.instr_name.startswith("v"):
                     print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
                         rs2, rs2_val, "\t\t", rd, str(commitvalue[2][2:]))
 
