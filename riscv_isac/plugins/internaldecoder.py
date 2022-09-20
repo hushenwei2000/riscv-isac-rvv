@@ -2927,7 +2927,7 @@ class disassembler():
             if rs1 == 0b00000:
                 instrObj.instr_name = "vfsqrt.v"
             elif rs1 == 0b00100:
-                instrObj.instr_name = "vfsqrt7.v"
+                instrObj.instr_name = "vfrsqrt7.v"
             elif rs1 == 0b00101:
                 instrObj.instr_name = "vfrec7.v"
             elif rs1 == 0b10000:
