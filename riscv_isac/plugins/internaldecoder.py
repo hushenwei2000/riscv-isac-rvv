@@ -2687,9 +2687,9 @@ class disassembler():
                 instrObj.instr_name = 'vfsub'
             elif funct6 == 0b100111:
                 instrObj.instr_name = 'vfrsub'
-            elif funct6 == 0b110000:
+            elif funct6 in [0b110000, 0b110100]:
                 instrObj.instr_name = 'vfwadd'
-            elif funct6 == 0b110010:
+            elif funct6 in [0b110010, 0b110110]:
                 instrObj.instr_name = 'vfwsub'
             elif funct6 == 0b100100:
                 instrObj.instr_name = 'vfmul'
@@ -2927,12 +2927,12 @@ class disassembler():
             if rs1 == 0b00000:
                 instrObj.instr_name = "vfsqrt.v"
             elif rs1 == 0b00100:
-                instrObj.instr_name = "vfsqrt7.v"
+                instrObj.instr_name = "vfrsqrt7.v"
             elif rs1 == 0b00101:
                 instrObj.instr_name = "vfrec7.v"
             elif rs1 == 0b10000:
                 instrObj.instr_name = "vfclass.v"
-        elif instrObj.instr_name.startswith("'VFUNARY0'"):
+        elif instrObj.instr_name.startswith("VFUNARY0"):
             instrObj.rs1 = None
             if rs1 == 0b00000:
                 instrObj.instr_name = "vfcvt.xu.f.v"
@@ -2956,7 +2956,7 @@ class disassembler():
                 instrObj.instr_name = "vfwcvt.f.x.v"
             elif rs1 == 0b01100:
                 instrObj.instr_name = "vfwcvt.f.f.v"
-            elif rs1 == 0b01101:
+            elif rs1 == 0b01110:
                 instrObj.instr_name = "vfwcvt.rtz.xu.f.v"
             elif rs1 == 0b01111:
                 instrObj.instr_name = "vfwcvt.rtz.x.f.v"
@@ -3012,6 +3012,7 @@ class disassembler():
         elif instrObj.instr_name.startswith("vcompress"):
             instrObj.instr_name = "vcompress.vm"
         
+        print(instrObj)
         return instrObj
 
     def flwfld_vload(self, instrObj):
