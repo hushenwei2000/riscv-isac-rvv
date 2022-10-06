@@ -2702,11 +2702,11 @@ class disassembler():
             elif funct6 == 0b101000:
                 instrObj.instr_name = 'vfmadd'
             elif funct6 == 0b101001:
-                instrObj.instr_name = 'vfrnmadd'
+                instrObj.instr_name = 'vfnmadd'
             elif funct6 == 0b101010:
                 instrObj.instr_name = 'vfmsub'
             elif funct6 == 0b101011:
-                instrObj.instr_name = 'vfmsub'
+                instrObj.instr_name = 'vfnmsub'
             elif funct6 == 0b101100:
                 instrObj.instr_name = 'vfmacc'
             elif funct6 == 0b101101:
@@ -3012,7 +3012,6 @@ class disassembler():
         elif instrObj.instr_name.startswith("vcompress"):
             instrObj.instr_name = "vcompress.vm"
         
-        print(instrObj)
         return instrObj
 
     def flwfld_vload(self, instrObj):
