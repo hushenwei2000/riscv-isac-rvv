@@ -226,6 +226,8 @@ def walking_ones(var, size, signed=True, fltr_func=None, scale_func=None):
     coverpoints =[]
     for d in dataset:
         coverpoints.append((var + ' == ' + str(d),'Walking Ones: '+str(hex(d))))
+    print(var, size)
+    print(coverpoints)
     return coverpoints
 
 def walking_zeros(var, size,signed=True, fltr_func=None, scale_func=None):
@@ -549,7 +551,7 @@ def alternate(var, size, signed=True, fltr_func=None,scale_func=None):
     #return [(coverpoint,"Alternate") for coverpoint in coverpoints]
 
 
-def expand_cgf(cgf_files, xlen, flen, vlen, vsew):
+def expand_cgf(cgf_files, xlen, flen, vlen, vsew, lmul):
     '''
     This function will replace all the abstract functions with their unrolled
     coverpoints. It replaces node

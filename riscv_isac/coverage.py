@@ -596,7 +596,7 @@ def simd_val_unpack(val_comb, op_width, op_name, val, local_dict):
     if simd_size == op_width:
         local_dict[f"{op_name}_val"]=elm_val
 
-def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen, vsew, addr_pairs, sig_addrs, stats, arch_state, csr_regfile, result_count, no_count):
+def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen, vsew, lmul, addr_pairs, sig_addrs, stats, arch_state, csr_regfile, result_count, no_count):
 
     '''
     This function checks if the current instruction under scrutiny matches a
@@ -1097,6 +1097,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 elif rd_type == 'f':
                     arch_state.f_rf[int(commitvalue[1])] =  str(commitvalue[2][2:])
                 elif rd_type == 'v':
+                    print("commitvalue", int(commitvalue[1]), commitvalue[2][2:])
                     arch_state.v_rf[int(commitvalue[1])] = str(commitvalue[2][2:])
                 if instr.instr_name.startswith("v"):
                     print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
@@ -1128,7 +1129,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
         cgf_queue.close()
         stats_queue.close()
 
-def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xlen, flen, vlen, vsew, addr_pairs
+def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xlen, flen, vlen, vsew, lmul, addr_pairs
         , dump, cov_labels, sig_addrs, window_size, no_count=False, procs=1):
     '''Compute the Coverage'''
 
@@ -1229,7 +1230,7 @@ def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xle
         process_list.append(
                         mp.Process(target=compute_per_line,
                                 args=(queue_list[i], event_list[i], cgf_queue_list[i], stats_queue_list[i],
-                                    chunks[i], xlen, flen, vlen, vsew, addr_pairs, sig_addrs,
+                                    chunks[i], xlen, flen, vlen, vsew, lmul, addr_pairs, sig_addrs,
                                     stats,
                                     arch_state,
                                     csr_regfile,

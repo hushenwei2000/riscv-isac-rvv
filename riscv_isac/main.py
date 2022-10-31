@@ -136,10 +136,15 @@ def cli(verbose):
         default='32',
         help="Selected Element Width for Vector Extension."
 )
+@click.option('--lmul',
+        type=click.Choice(['0.125', '0.25', '0.5', '1', '2', '4', '8']),
+        default='1',
+        help="LMUL for Vector Extension."
+)
 def coverage(elf,trace_file, window_size, cgf_file, detailed,parser_name, decoder_name, parser_path, decoder_path,output_file, test_label,
-        sig_label, dump,cov_label, xlen, flen, vlen, vsew, no_count, procs):
-    isac(output_file,elf,trace_file, window_size, expand_cgf(cgf_file,int(xlen),int(flen), int(vlen), int(vsew)), parser_name, decoder_name, parser_path, decoder_path, detailed, test_label,
-            sig_label, dump, cov_label, int(xlen), int(flen), int(vlen), int(vsew), no_count, procs)
+        sig_label, dump,cov_label, xlen, flen, vlen, vsew, lmul, no_count, procs):
+    isac(output_file,elf,trace_file, window_size, expand_cgf(cgf_file,int(xlen),int(flen), int(vlen), int(vsew), float(lmul)), parser_name, decoder_name, parser_path, decoder_path, detailed, test_label,
+            sig_label, dump, cov_label, int(xlen), int(flen), int(vlen), int(vsew), float(lmul), no_count, procs)
 
 
 @cli.command(help = "Merge given coverage files.")
@@ -184,9 +189,14 @@ def coverage(elf,trace_file, window_size, cgf_file, detailed,parser_name, decode
         default='32',
         help="Selected Element Width for Vector Extension."
 )
-def merge(files,detailed,p,cgf_file,output_file,flen,xlen,vlen,vsew):
+@click.option('--lmul',
+        type=click.Choice(['0.125', '0.25', '0.5', '1', '2', '4', '8']),
+        default='1',
+        help="LMUL for Vector Extension."
+)
+def merge(files,detailed,p,cgf_file,output_file,flen,xlen,vlen,vsew,lmul):
     rpt = cov.merge_coverage(
-            files,expand_cgf(cgf_file,int(xlen),int(flen),int(vlen),int(vsew)),detailed,p)
+            files,expand_cgf(cgf_file,int(xlen),int(flen),int(vlen),int(vsew), float(lmul)),detailed,p)
     if output_file is None:
         logger.info('Coverage Report:')
         logger.info('\n\n' + rpt)
@@ -222,10 +232,15 @@ def merge(files,detailed,p,cgf_file,output_file,flen,xlen,vlen,vsew):
         default='32',
         help="Selected Element Width for Vector Extension."
 )
-def normalize(cgf_file,output_file,xlen,flen,vlen,vsew):
+@click.option('--lmul',
+        type=click.Choice(['0.125', '0.25', '0.5', '1', '2', '4', '8']),
+        default='1',
+        help="LMUL for Vector Extension."
+)
+def normalize(cgf_file,output_file,xlen,flen,vlen,vsew,lmul):
     logger.info("Writing normalized CGF to "+str(output_file))
     with open(output_file,"w") as outfile:
-        utils.dump_yaml(expand_cgf(cgf_file,int(xlen),int(flen),int(vlen),int(vsew)),outfile)
+        utils.dump_yaml(expand_cgf(cgf_file,int(xlen),int(flen),int(vlen),int(vsew), float(lmul)),outfile)
 
 @cli.command(help = 'Setup the plugin which uses the information from RISCV Opcodes repository to decode.')
 @click.option('--url',

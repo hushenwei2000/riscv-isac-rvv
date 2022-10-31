@@ -2983,6 +2983,7 @@ class disassembler():
             else:
                 instrObj.rs1 = None
                 instrObj.rd = (rd, 'x')
+                instrObj.rs2 = (rs2, 'v')
                 if rs1 == 0b00000:
                     instrObj.instr_name = "vmv.x.s"
                 elif rs1 == 0b10000:
