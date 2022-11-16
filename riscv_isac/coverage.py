@@ -190,6 +190,20 @@ class csr_registers(MutableMapping):
         # S-Mode CSRs
         self.csr[int('106',16)] = '00000000' # scounteren
 
+        # F-Mode CSRs
+        self.csr[int('001',16)] = '00000000' # fflags
+        self.csr[int('002',16)] = '00000000' # frm
+        self.csr[int('003',16)] = '00000000' # fcsr
+
+        # V-Mode CSRs
+        self.csr[int('008',16)] = '00000000' # vstart
+        self.csr[int('009',16)] = '00000000' # vxsat
+        self.csr[int('00A',16)] = '00000000' # vxrm
+        self.csr[int('00F',16)] = '00000000' # vcsr
+        self.csr[int('C20',16)] = '00000000' # vl
+        self.csr[int('C21',16)] = '00000000' # vtype
+        self.csr[int('C22',16)] = '00000000' # vlenb
+
         self.csr_regs={
             "mvendorid":int('F11',16),
             "marchid":int('F12',16),
@@ -239,9 +253,15 @@ class csr_registers(MutableMapping):
             "vxsat": int('009',16),
             "fflags":int('1',16),
             "frm":int('2',16),
-            "fcsr":int('3',16)
+            "fcsr":int('3',16),
+            "vstart": int('008', 16),
+            "vxrm": int('00A', 16),
+            "vcsr": int('00F', 16),
+            "vl": int('C20', 16),
+            "vtype": int('C21', 16),
+            "vlenb": int('C22', 16)
         }
-        for i in range(16):
+        for i in range(16): 
             self.csr_regs["pmpaddr"+str(i)] = int('3B0',16)+i
         for i in range(3,32):
             self.csr_regs["mhpmcounter"+str(i)] = int('B03',16) + (i-3)
@@ -276,7 +296,7 @@ class archState:
     Defines the architectural state of the RISC-V device.
     '''
 
-    def __init__ (self, xlen, flen):
+    def __init__ (self, xlen, flen, vlen):
         '''
         Class constructor
 
@@ -302,10 +322,21 @@ class archState:
 
         if flen == 32:
             self.f_rf = ['00000000']*32
+            self.fcsr = 0
         else:
             self.f_rf = ['0000000000000000']*32
+            self.fcsr = 0
+
+        if vlen != -1:
+            self.v_rf = ['0' * int(vlen / 4)]*32
+            self.vcsr = 0
+
         self.pc = 0
         self.flen = flen
+
+        def __str__(self):
+            return "[x_rf={}, f_rf={}, v_rf={}]".format(self.x_rf, self.f_rf, self.v_rf)
+
 
 class statistics:
     '''
@@ -423,7 +454,7 @@ def gen_report(cgf, detailed):
                     for coverpoints, coverage in value[categories].items():
                         if coverage == 0:
                             uncovered += 1
-                    percentage_covered = str((len(value[categories]) - uncovered)/len(value[categories]))
+                    percentage_covered = str((len(value[categories]) - uncovered)/len(value[categories])) if len(value[categories]) > 0 else 1
                     node_level_str =  '  ' + categories + ':\n'
                     node_level_str += '    coverage: ' + \
                             str(len(value[categories]) - uncovered) + \
@@ -565,7 +596,8 @@ def simd_val_unpack(val_comb, op_width, op_name, val, local_dict):
     if simd_size == op_width:
         local_dict[f"{op_name}_val"]=elm_val
 
-def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, addr_pairs, sig_addrs, stats, arch_state, csr_regfile, result_count, no_count):
+def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen, vsew, lmul, addr_pairs, sig_addrs, stats, arch_state, csr_regfile, result_count, no_count):
+
     '''
     This function checks if the current instruction under scrutiny matches a
     particular coverpoint of interest. If so, it updates the coverpoints and
@@ -703,9 +735,34 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, addr
             elif rs1_type == 'x':
                 rs1_val = struct.unpack(sgn_sz, bytes.fromhex(arch_state.x_rf[nxf_rs1]))[0]
             elif rs1_type == 'f':
-                rs1_val = struct.unpack(fsgn_sz, bytes.fromhex(arch_state.f_rf[nxf_rs1]))[0]
+                freg_content = arch_state.f_rf[nxf_rs1][int(-flen/4):]
+                rs1_val = struct.unpack(fsgn_sz, bytes.fromhex(freg_content))[0]
                 define_sem(flen,iflen,rs1_val,"1",instr_vars)
-
+                if instr.instr_name.startswith("vf"):
+                    rs1_val = '0x' + freg_content.upper()
+            elif rs1_type == 'v':
+                if instr.instr_name.startswith("vc") or instr.instr_name.startswith("vr") or instr.instr_name.startswith("vm"):
+                    vsew_bits = math.ceil((vlen / vsew) / 4)
+                    if lmul > 1 :
+                        vsew_bits = int(vsew_bits * lmul)
+                    if vsew_bits > 32 :
+                        vsew_bits = 32
+                    element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
+                    element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
+                    rs1_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
+                else:
+                    vsew_bits = int(vsew / 4)
+                    element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
+                    # Process Floating-Points Operands
+                    if instr.instr_name.startswith("vf"):
+                        rs1_val = '0x' + element_str.upper()
+                    # Process Integer Operands, Sign-Extend to XLEN
+                    else:
+                        if(element_str[0] >= '0' and element_str[0] <= '7'):
+                            element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
+                        else:
+                            element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str
+                        rs1_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
             rs2_val = None
             if instr.instr_name in unsgn_rs2:
                 rs2_val = struct.unpack(unsgn_sz, bytes.fromhex(arch_state.x_rf[nxf_rs2]))[0]
@@ -717,8 +774,34 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, addr
             elif rs2_type == 'x':
                 rs2_val = struct.unpack(sgn_sz, bytes.fromhex(arch_state.x_rf[nxf_rs2]))[0]
             elif rs2_type == 'f':
-                rs2_val = struct.unpack(fsgn_sz, bytes.fromhex(arch_state.f_rf[nxf_rs2]))[0]
+                freg_content = arch_state.f_rf[nxf_rs2][int(-flen/4):]
+                rs2_val = struct.unpack(fsgn_sz, bytes.fromhex(freg_content))[0]
                 define_sem(flen,iflen,rs2_val,"2",instr_vars)
+                if instr.instr_name.startswith("vf"):
+                    rs1_val = '0x' + bytes.fromhex(arch_state.f_rf[nxf_rs2]).upper()
+            elif rs2_type == 'v':
+                if instr.instr_name.startswith("vc") or instr.instr_name.startswith("vr") or instr.instr_name.startswith("vm"):
+                    vsew_bits = math.ceil((vlen / vsew) / 4)
+                    if lmul > 1 :
+                        vsew_bits = int(vsew_bits * lmul)
+                    if vsew_bits > 32 :
+                        vsew_bits = 32
+                    element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
+                    element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
+                    rs2_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
+                else:
+                    vsew_bits = int(vsew / 4)
+                    element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bits):]
+                    # Process Floating-Points Operands
+                    if instr.instr_name.startswith("vf"):
+                        rs2_val = '0x' + element_str.upper()
+                    # Process Integer Operands, Sign-Extend to XLEN
+                    else:
+                        if(element_str[0] >= '0' and element_str[0] <= '7'):
+                            element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
+                        else:
+                            element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str
+                        rs2_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
 
             rs3_val = None
             if rs3_type == 'f':
@@ -744,6 +827,15 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, addr
             arch_state.pc = instr.instr_addr
 
             ea_align = None
+            # Vector-load instrcutions have different imm_val for different types of load
+            if instr.instr_name.startswith("vl") or instr.instr_name.startswith("vs"):
+                if instr.rs2 is None:  # Unit-Strided
+                    imm_val = 0
+                elif rs2_type == 'x':  # Strided
+                    imm_val = rs2_val
+                else:  # Ordered/Unordered Indexed
+                    imm_val = rs2_val
+
             # the ea_align variable is used by the eval statements of the
             # coverpoints for conditional ops and memory ops
             if instr.instr_name in ['jal','bge','bgeu','blt','bltu','beq','bne']:
@@ -752,9 +844,40 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, addr
             if instr.instr_name == "jalr":
                 ea_align = (rs1_val + imm_val) % 4
 
-            if instr.instr_name in ['sw','sh','sb','lw','lhu','lh','lb','lbu','lwu','flw','fsw']:
+            vload_instrs = ['vle8.v', 'vle16.v', 'vle32.v', 'vle8ff.v', 'vle16ff.v', 'vle32ff.v', 'vlse8.v', 'vlse16.v', 'vlse32.v',  'vlseg1e8.v', 'vlseg2e8.v', 'vlseg3e8.v', 'vlseg4e8.v', 'vlseg5e8.v', 'vlseg6e8.v', 'vlseg7e8.v', 'vlseg8e8.v', 'vlseg1e16.v', 'vlseg2e16.v',
+                    'vlseg3e16.v', 'vlseg4e16.v', 'vlseg5e16.v', 'vlseg6e16.v', 'vlseg7e16.v', 'vlseg8e16.v', 'vlseg1e32.v', 'vlseg2e32.v', 'vlseg3e32.v', 'vlseg4e32.v', 'vlseg5e32.v', 'vlseg6e32.v', 'vlseg7e32.v', 'vlseg8e32.v',
+                    'vlsseg2e8.v', 'vlsseg3e8.v', 'vlsseg4e8.v', 'vlsseg5e8.v', 'vlsseg6e8.v', 'vlsseg7e8.v', 'vlsseg8e8.v',
+                    'vlsseg2e16.v', 'vlsseg3e16.v', 'vlsseg4e16.v', 'vlsseg5e16.v', 'vlsseg6e16.v', 'vlsseg7e16.v', 'vlsseg8e16.v',
+                    'vlsseg2e32.v', 'vlsseg3e32.v', 'vlsseg4e32.v', 'vlsseg5e32.v', 'vlsseg6e32.v', 'vlsseg7e32.v', 'vlsseg8e32.v',
+                    'vluxei8.v', 'vluxei16.v', 'vluxei32.v', 
+                    'vluxseg2ei8.v', 'vluxseg3ei8.v', 'vluxseg4ei8.v', 'vluxseg5ei8.v', 'vluxseg6ei8.v', 'vluxseg7ei8.v', 'vluxseg8ei8.v', 
+                    'vluxseg2ei16.v', 'vluxseg3ei16.v', 'vluxseg4ei16.v', 'vluxseg5ei16.v', 'vluxseg6ei16.v', 'vluxseg7ei16.v', 'vluxseg8ei16.v',
+                    'vluxseg2ei32.v', 'vluxseg3ei32.v', 'vluxseg4ei32.v', 'vluxseg5ei32.v', 'vluxseg6ei32.v', 'vluxseg7ei32.v', 'vluxseg8ei32.v',
+                    'vse8.v', 'vse16.v', 'vse32.v', 'vsse8.v', 'vsse16.v', 'vsse32.v',  'vsseg1e8.v', 'vsseg2e8.v', 'vsseg3e8.v', 'vsseg4e8.v', 'vsseg5e8.v', 'vsseg6e8.v', 'vsseg7e8.v', 'vsseg8e8.v', 'vsseg1e16.v', 'vsseg2e16.v',
+                    'vsseg3e16.v', 'vsseg4e16.v', 'vsseg5e16.v', 'vsseg6e16.v', 'vsseg7e16.v', 'vsseg8e16.v', 'vsseg1e32.v', 'vsseg2e32.v', 'vsseg3e32.v', 'vsseg4e32.v', 'vsseg5e32.v', 'vsseg6e32.v', 'vsseg7e32.v', 'vsseg8e32.v',
+                    'vssseg2e8.v', 'vssseg3e8.v', 'vssseg4e8.v', 'vssseg5e8.v', 'vssseg6e8.v', 'vssseg7e8.v', 'vssseg8e8.v',
+                    'vssseg2e16.v', 'vssseg3e16.v', 'vssseg4e16.v', 'vssseg5e16.v', 'vssseg6e16.v', 'vssseg7e16.v', 'vssseg8e16.v',
+                    'vssseg2e32.v', 'vssseg3e32.v', 'vssseg4e32.v', 'vssseg5e32.v', 'vssseg6e32.v', 'vssseg7e32.v', 'vssseg8e32.v',
+                    'vsuxei8.v', 'vsuxei16.v', 'vsuxei32.v', 
+                    'vsuxseg2ei8.v', 'vsuxseg3ei8.v', 'vsuxseg4ei8.v', 'vsuxseg5ei8.v', 'vsuxseg6ei8.v', 'vsuxseg7ei8.v', 'vsuxseg8ei8.v', 
+                    'vsuxseg2ei16.v', 'vsuxseg3ei16.v', 'vsuxseg4ei16.v', 'vsuxseg5ei16.v', 'vsuxseg6ei16.v', 'vsuxseg7ei16.v', 'vsuxseg8ei16.v',
+                    'vsuxseg2ei32.v', 'vsuxseg3ei32.v', 'vsuxseg4ei32.v', 'vsuxseg5ei32.v', 'vsuxseg6ei32.v', 'vsuxseg7ei32.v', 'vsuxseg8ei32.v',
+                    'vs1r.v', 'vs2r.v', 'vs4r.v', 'vs8r.v', 
+                    'vl1re8.v', 'vl2re8.v', 'vl4re8.v', 'vl8re8.v', 'vl2r.v',
+                    'vl1re16.v', 'vl2re16.v', 'vl4re16.v', 'vl8re16.v',
+                    'vl1re32.v', 'vl2re32.v', 'vl4re32.v', 'vl8re32.v' ]
+            vload_instrs_double = ['vle64.v', 'vle64ff.v', 'vlse64.v', 'vlseg1e64.v', 'vlseg2e64.v', 'vlseg3e64.v',
+                           'vlseg4e64.v', 'vlseg5e64.v', 'vlseg6e64.v', 'vlseg7e64.v', 'vlseg8e64.v',
+                           'vluxei64.v', 'vlsseg3e64.v', 'vluxseg3ei64.v',
+                           'vse64.v', 'vsse64.v', 'vsseg1e64.v', 'vsseg2e64.v', 'vsseg3e64.v',
+                           'vsseg4e64.v', 'vsseg5e64.v', 'vsseg6e64.v', 'vsseg7e64.v', 'vsseg8e64.v',
+                           'vsuxei64.v', 'vssseg3e64.v', 'vsuxseg3ei64.v',
+                           'vl2re64.v'
+                           ]
+
+            if instr.instr_name in ['sw','sh','sb','lw','lhu','lh','lb','lbu','lwu','flw','fsw'] or instr.instr_name in vload_instrs:
                 ea_align = (rs1_val + imm_val) % 4
-            if instr.instr_name in ['ld','sd','fld','fsd']:
+            if instr.instr_name in ['ld','sd','fld','fsd'] or instr.instr_name in vload_instrs_double:
                 ea_align = (rs1_val + imm_val) % 8
 
             if rs1_val is not None:
@@ -770,6 +893,8 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, addr
             instr_vars['xlen'] = xlen
             instr_vars['flen'] = flen
             instr_vars['iflen'] = iflen
+            instr_vars['vsew'] = vsew
+            instr_vars['vlen'] = vlen
 
             local_dict = {}
             for i in csr_regfile.csr_regs:
@@ -858,6 +983,23 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, addr
                                     stats.covpt.append('rs3 : ' + rs3)
                                     value['rs3'][rs3] += 1
 
+                                if 'rs1' in value and 'v'+str(rs1) in value['rs1']:
+                                    if value['rs1']['v'+str(rs1)] == 0:
+                                        stats.ucovpt.append('rs1 : ' + 'v'+str(rs1))
+                                    stats.covpt.append('rs1 : ' + 'v'+str(rs1))
+                                    value['rs1']['v'+str(rs1)] += 1
+                                if 'rs2' in value and 'v'+str(rs2) in value['rs2']:
+                                    if value['rs2']['v'+str(rs2)] == 0:
+                                        stats.ucovpt.append('rs2 : ' + 'v'+str(rs2))
+                                    stats.covpt.append('rs2 : ' + 'v'+str(rs2))
+                                    value['rs2']['v'+str(rs2)] += 1
+                                if 'rd' in value and is_rd_valid and 'v'+str(rd) in value['rd']:
+                                    if value['rd']['v'+str(rd)] == 0:
+                                        stats.ucovpt.append('rd : ' + 'v'+str(rd))
+                                    stats.covpt.append('rd : ' + 'v'+str(rd))
+                                    value['rd']['v'+str(rd)] += 1
+
+                                # print("Start eval(), rs1 = %s, rs2 = %s" % (rs1_val, rs2_val))
                                 if 'op_comb' in value and len(value['op_comb']) != 0 :
                                     for coverpoints in value['op_comb']:
                                         if eval(coverpoints):
@@ -966,12 +1108,20 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, addr
                             stats.covpt = []
                             stats.code_seq = []
                             stats.ucode_seq = []
-
+                            
             if commitvalue is not None:
+                if instr.instr_name.startswith("csrrw"):
+                    print("fflags Commit Info value: ", commitvalue[2])
                 if rd_type == 'x':
-                    arch_state.x_rf[int(commitvalue[1])] =  str(commitvalue[2][2:])
+                    arch_state.x_rf[int(commitvalue[1])] =  str(commitvalue[2][2:18])
                 elif rd_type == 'f':
                     arch_state.f_rf[int(commitvalue[1])] =  str(commitvalue[2][2:])
+                elif rd_type == 'v':
+                    print("commitvalue", int(commitvalue[1]), commitvalue[2][2:])
+                    arch_state.v_rf[int(commitvalue[1])] = str(commitvalue[2][2:])
+                if instr.instr_name.startswith("v"):
+                    print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
+                        rs2, rs2_val, "\t\t", rd, str(commitvalue[2][2:]))
 
             csr_commit = instr.csr_commit
             if csr_commit is not None:
@@ -999,7 +1149,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, addr
         cgf_queue.close()
         stats_queue.close()
 
-def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xlen, flen, addr_pairs
+def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xlen, flen, vlen, vsew, lmul, addr_pairs
         , dump, cov_labels, sig_addrs, window_size, no_count=False, procs=1):
     '''Compute the Coverage'''
 
@@ -1028,7 +1178,7 @@ def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xle
         dump_f.close()
         sys.exit(0)
 
-    arch_state = archState(xlen,flen)
+    arch_state = archState(xlen,flen,vlen)
     csr_regfile = csr_registers(xlen)
     stats = statistics(xlen, flen)
     cross_cover_queue = []
@@ -1100,7 +1250,7 @@ def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xle
         process_list.append(
                         mp.Process(target=compute_per_line,
                                 args=(queue_list[i], event_list[i], cgf_queue_list[i], stats_queue_list[i],
-                                    chunks[i], xlen, flen, addr_pairs, sig_addrs,
+                                    chunks[i], xlen, flen, vlen, vsew, lmul, addr_pairs, sig_addrs,
                                     stats,
                                     arch_state,
                                     csr_regfile,
@@ -1284,4 +1434,3 @@ def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xle
         f.close()
 
     return rpt_str
-
