@@ -741,18 +741,28 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + freg_content.upper()
             elif rs1_type == 'v':
-                vsew_bits = int(vsew / 4)
-                element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
-                # Process Floating-Points Operands
-                if instr.instr_name.startswith("vf"):
-                    rs1_val = '0x' + element_str.upper()
-                # Process Integer Operands, Sign-Extend to XLEN
-                else:
-                    if(element_str[0] >= '0' and element_str[0] <= '7'):
-                        element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
-                    else:
-                        element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str
+                if instr.instr_name.startswith("vc") or instr.instr_name.startswith("vr") or instr.instr_name.startswith("vm"):
+                    vsew_bits = math.ceil((vlen / vsew) / 4)
+                    if lmul > 1 :
+                        vsew_bits = int(vsew_bits * lmul)
+                    if vsew_bits > 32 :
+                        vsew_bits = 32
+                    element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
+                    element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
                     rs1_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
+                else:
+                    vsew_bits = int(vsew / 4)
+                    element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
+                    # Process Floating-Points Operands
+                    if instr.instr_name.startswith("vf"):
+                        rs1_val = '0x' + element_str.upper()
+                    # Process Integer Operands, Sign-Extend to XLEN
+                    else:
+                        if(element_str[0] >= '0' and element_str[0] <= '7'):
+                            element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
+                        else:
+                            element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str
+                        rs1_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
             rs2_val = None
             if instr.instr_name in unsgn_rs2:
                 rs2_val = struct.unpack(unsgn_sz, bytes.fromhex(arch_state.x_rf[nxf_rs2]))[0]
@@ -770,18 +780,28 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + bytes.fromhex(arch_state.f_rf[nxf_rs2]).upper()
             elif rs2_type == 'v':
-                vsew_bits = int(vsew / 4)
-                element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bits):]
-                # Process Floating-Points Operands
-                if instr.instr_name.startswith("vf"):
-                    rs2_val = '0x' + element_str.upper()
-                # Process Integer Operands, Sign-Extend to XLEN
-                else:
-                    if(element_str[0] >= '0' and element_str[0] <= '7'):
-                        element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
-                    else:
-                        element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str
+                if instr.instr_name.startswith("vc") or instr.instr_name.startswith("vr") or instr.instr_name.startswith("vm"):
+                    vsew_bits = math.ceil((vlen / vsew) / 4)
+                    if lmul > 1 :
+                        vsew_bits = int(vsew_bits * lmul)
+                    if vsew_bits > 32 :
+                        vsew_bits = 32
+                    element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
+                    element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
                     rs2_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
+                else:
+                    vsew_bits = int(vsew / 4)
+                    element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bits):]
+                    # Process Floating-Points Operands
+                    if instr.instr_name.startswith("vf"):
+                        rs2_val = '0x' + element_str.upper()
+                    # Process Integer Operands, Sign-Extend to XLEN
+                    else:
+                        if(element_str[0] >= '0' and element_str[0] <= '7'):
+                            element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
+                        else:
+                            element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str
+                        rs2_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
 
             rs3_val = None
             if rs3_type == 'f':
@@ -1414,4 +1434,3 @@ def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xle
         f.close()
 
     return rpt_str
-
