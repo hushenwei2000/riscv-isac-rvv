@@ -723,8 +723,6 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
 
 
             instr_vars = {}
-            # Store vals in different registers
-            mask_val = []
 
             # special value conversion based on signed/unsigned operations
             rs1_val = None
@@ -752,7 +750,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + freg_content.upper()
             elif rs1_type == 'v':
-                # Mask instruction
+                # Mask instruction(vm)
                 if instr.instr_name.startswith("vm"):
                     vsew_bits = max(int((vlen / vsew) / 4 ),1)
                     element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
@@ -797,30 +795,15 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                         if vsew_bits * lmul >= 1:
                             vsew_bits = int(vsew_bits * lmul)
                     if instr.instr_name.startswith("vfirst") or instr.instr_name.startswith("vpopc"):
-                        # print(commitvalue)
-                        # print("insname:%s"%(instr.instr_name))
-                        # print("ins_commitvalue:%d"%(last_commitvalue))
                         element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bits):]
-                        # element_str = arch_state.v_rf[last_commitvalue][int(-vsew_bits):]
-                        # print("arch_state.v_rf:%s"%(arch_state.v_rf[last_commitvalue]))
-                        # print("arch_state.x_rf:%s"%(arch_state.x_rf[last_commitvalue]))
                     else:
-                        print("insname:%s"%(instr.instr_name))
-                        print("pre_ins_commitvalue:%d"%(last_commitvalue))
-                        print("nxf_rs2:%d"%nxf_rs2)
                         element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bits):]
-                        print("arch_state.v_rf_nxf_rs2:%s"%(arch_state.v_rf[nxf_rs2]))
-                        print("arch_state.v_rf_commitvalue:%s"%(arch_state.v_rf[last_commitvalue]))
 
                     # To ensure that Hex_str is exactly 8 bits
                     element_str = "0" * (32 - len(element_str)) + element_str
-                    print("element_str:%s"%(element_str))
                     Hex_str = bytes.fromhex(element_str)
                     Hex_str = Hex_str[-8:]
-                    print("Hex_str: ",Hex_str)
-
                     rs2_val = struct.unpack(unsgn_sz, Hex_str)[0]
-                    print("rs2_val:%d"%(rs2_val))
                 else:    
                     vsew_bits = int(vsew / 4)
                     element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bits):]
@@ -1043,8 +1026,6 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                                             cgf[cov_labels]['op_comb'][coverpoints] += 1
 
                                 if 'val_comb' in value and len(value['val_comb']) != 0:
-                                    print("Start eval(), rs1 = %s, rs2 = %s" % (rs1_val, rs2_val))
-                                    # print("***instr_vars1: ",instr_vars)
                                     lcls={}
                                     if instr.is_rvp and "rs1" in value:
                                         op_width = 64 if instr.rs1_nregs == 2 else xlen
@@ -1061,20 +1042,6 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                                                     hit_covpts.append((cov_labels, 'val_comb', coverpoints))
                                             stats.covpt.append(str(coverpoints))
                                             cgf[cov_labels]['val_comb'][coverpoints] += 1
-                                    # Mask instruction(cover multiple registers at once)
-                                    # if instr.instr_name.startswith("vm") or instr.instr_name.startswith("vfirst") or instr.instr_name.startswith("vpopc") or instr.instr_name.startswith("viota"):
-                                    #     for iv in mask_val:
-                                    #         if iv == 0:
-                                    #             continue
-                                    #         for coverpoints in value['val_comb']:
-                                    #             real_val2 = coverpoints.split(" ")[-1]
-                                    #             if real_val2 == str(iv):
-                                    #                 if cgf[cov_labels]['val_comb'][coverpoints] == 0:
-                                    #                     stats.ucovpt.append(str(coverpoints))
-                                    #                     if no_count:
-                                    #                         hit_covpts.append((cov_labels, 'val_comb', coverpoints))
-                                    #                 stats.covpt.append(str(coverpoints))
-                                    #                 cgf[cov_labels]['val_comb'][coverpoints] += 1
                                 if 'abstract_comb' in value \
                                         and len(value['abstract_comb']) != 0 :
                                     for coverpoints in value['abstract_comb']:
@@ -1170,7 +1137,6 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("v"):
                     print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
                         rs2, rs2_val, "\t\t", rd, str(commitvalue[2][2:]))
-                    # print("commitvalue:%d"%int(commitvalue[1]))
                     last_commitvalue = int(commitvalue[1])
 
             csr_commit = instr.csr_commit
