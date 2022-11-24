@@ -47,6 +47,10 @@ unsgn_rs2 = ['bgeu', 'bltu', 'sltiu', 'sltu', 'sll', 'srl', 'sra','mulhu',\
         'xperm.n','xperm.b', 'aes32esmi', 'aes32esi', 'aes32dsmi', 'aes32dsi',\
         'sha512sum1r','sha512sum0r','sha512sig1l','sha512sig1h','sha512sig0l','sha512sig0h','fsw',\
         'bclr','bext','binv','bset','minu','maxu','add.uw','sh1add.uw','sh2add.uw','sh3add.uw']
+vmask_instrs = ['vfirst', 'vid', 'viota', 'vmand', 'vmandnot', 'vmnand',\
+        'vmor', 'vmornot', 'vmsbf', 'vmxnor', 'vmxor', 'vpopc']
+
+last_commitvalue = 0
 
 class cross():
 
@@ -647,7 +651,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
 
             mnemonic = instr.mnemonic
             commitvalue = instr.reg_commit
-
+            
             # assign default values to operands
             nxf_rs1 = 0
             nxf_rs2 = 0
@@ -722,7 +726,8 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
 
 
             instr_vars = {}
-
+            instr_prefix = instr.instr_name.split(".")[0]
+            # print("instr_name: ",instr_prefix)
             # special value conversion based on signed/unsigned operations
             rs1_val = None
             if instr.instr_name in unsgn_rs1:
@@ -733,7 +738,18 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                     rs1_hi_val = struct.unpack(unsgn_sz, bytes.fromhex(arch_state.x_rf[nxf_rs1+1]))[0]
                     rs1_val = (rs1_hi_val << 32) | rs1_val
             elif rs1_type == 'x':
-                rs1_val = struct.unpack(sgn_sz, bytes.fromhex(arch_state.x_rf[nxf_rs1]))[0]
+                # Mask instruction(vid)
+                if instr.instr_name.startswith("vid"): 
+                    vsew_bits = max(int((vlen / vsew) / 4 ),1)
+                    if vsew_bits * lmul >= 1:
+                        vsew_bits = int(vsew_bits * lmul)
+                    element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
+                    element_str = "0" * (32 - len(element_str)) + element_str
+                    Hex_str = bytes.fromhex(element_str)
+                    Hex_str = Hex_str[-8:]
+                    rs1_val = struct.unpack(unsgn_sz, Hex_str)[0]
+                else:
+                    rs1_val = struct.unpack(sgn_sz, bytes.fromhex(arch_state.x_rf[nxf_rs1]))[0]
             elif rs1_type == 'f':
                 freg_content = arch_state.f_rf[nxf_rs1][int(-flen/4):]
                 rs1_val = struct.unpack(fsgn_sz, bytes.fromhex(freg_content))[0]
@@ -741,18 +757,27 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + freg_content.upper()
             elif rs1_type == 'v':
-                vsew_bits = int(vsew / 4)
-                element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
-                # Process Floating-Points Operands
-                if instr.instr_name.startswith("vf"):
-                    rs1_val = '0x' + element_str.upper()
-                # Process Integer Operands, Sign-Extend to XLEN
-                else:
-                    if(element_str[0] >= '0' and element_str[0] <= '7'):
-                        element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
+                # Mask instruction(vm)
+                if instr.instr_name.startswith("vm") and instr_prefix in vmask_instrs:
+                    vsew_bits = max(int((vlen / vsew) / 4 ),1)
+                    element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
+                    element_str = "0" * (32 - len(element_str)) + element_str
+                    Hex_str = bytes.fromhex(element_str)
+                    Hex_str = Hex_str[-8:]
+                    rs1_val = struct.unpack(unsgn_sz, Hex_str)[0]
+                else:    
+                    vsew_bits = int(vsew / 4)
+                    element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
+                    # Process Floating-Points Operands
+                    if instr.instr_name.startswith("vf"):
+                        rs1_val = '0x' + element_str.upper()
+                    # Process Integer Operands, Sign-Extend to XLEN
                     else:
-                        element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str
-                    rs1_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
+                        if(element_str[0] >= '0' and element_str[0] <= '7'):
+                            element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
+                        else:
+                            element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str       
+                        rs1_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
             rs2_val = None
             if instr.instr_name in unsgn_rs2:
                 rs2_val = struct.unpack(unsgn_sz, bytes.fromhex(arch_state.x_rf[nxf_rs2]))[0]
@@ -770,18 +795,37 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + bytes.fromhex(arch_state.f_rf[nxf_rs2]).upper()
             elif rs2_type == 'v':
-                vsew_bits = int(vsew / 4)
-                element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bits):]
-                # Process Floating-Points Operands
-                if instr.instr_name.startswith("vf"):
-                    rs2_val = '0x' + element_str.upper()
-                # Process Integer Operands, Sign-Extend to XLEN
-                else:
-                    if(element_str[0] >= '0' and element_str[0] <= '7'):
-                        element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
+                # Mask instruction(vm, vfirst, vpopc, vid)
+                if instr_prefix in vmask_instrs:
+                    vsew_bits = int((vlen / vsew) / 4 )
+                    if vsew_bits < 1:
+                        vsew_bits = max(int(vsew / 4), int((vlen / vsew) / 4 ))
+                    if instr.instr_name.startswith("vfirst"):
+                        if vsew_bits * lmul >= 1:
+                            vsew_bits = int(vsew_bits * lmul)
+                    if instr.instr_name.startswith("vfirst") or instr.instr_name.startswith("vpopc"):
+                        element_str = arch_state.v_rf[last_commitvalue][int(-vsew_bits):]
                     else:
-                        element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str
-                    rs2_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
+                        element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bits):]
+
+                    # To ensure that Hex_str is exactly 8 bits
+                    element_str = "0" * (32 - len(element_str)) + element_str
+                    Hex_str = bytes.fromhex(element_str)
+                    Hex_str = Hex_str[-8:]
+                    rs2_val = struct.unpack(unsgn_sz, Hex_str)[0]
+                else:    
+                    vsew_bits = int(vsew / 4)
+                    element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bits):]
+                    # Process Floating-Points Operands
+                    if instr.instr_name.startswith("vf"):
+                        rs2_val = '0x' + element_str.upper()
+                    # Process Integer Operands, Sign-Extend to XLEN
+                    else:
+                        if(element_str[0] >= '0' and element_str[0] <= '7'):
+                            element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
+                        else:
+                            element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str       
+                        rs2_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
 
             rs3_val = None
             if rs3_type == 'f':
@@ -1102,6 +1146,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("v"):
                     print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
                         rs2, rs2_val, "\t\t", rd, str(commitvalue[2][2:]))
+                    last_commitvalue = int(commitvalue[1])
 
             csr_commit = instr.csr_commit
             if csr_commit is not None:
