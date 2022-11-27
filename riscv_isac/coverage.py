@@ -741,7 +741,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + freg_content.upper()
             elif rs1_type == 'v':
-                if instr.instr_name.startswith("vc") or instr.instr_name.startswith("vr") or instr.instr_name.startswith("vm"):
+                if instr.instr_name.startswith("vc") or instr.instr_name.startswith("vrgather")):
                     vsew_bits = math.ceil((vlen / vsew) / 4)
                     if lmul > 1 :
                         vsew_bits = int(vsew_bits * lmul)
@@ -780,7 +780,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + bytes.fromhex(arch_state.f_rf[nxf_rs2]).upper()
             elif rs2_type == 'v':
-                if instr.instr_name.startswith("vc") or instr.instr_name.startswith("vr") or instr.instr_name.startswith("vm"):
+                if instr.instr_name.startswith("vc") or instr.instr_name.startswith("vrgather"):
                     vsew_bits = math.ceil((vlen / vsew) / 4)
                     if lmul > 1 :
                         vsew_bits = int(vsew_bits * lmul)
