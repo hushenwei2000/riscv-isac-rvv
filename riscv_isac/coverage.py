@@ -741,7 +741,15 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + freg_content.upper()
             elif rs1_type == 'v':
-                if instr.instr_name.startswith("vc") or instr.instr_name.startswith("vrgather")):
+                # Mask instruction(vm)
+                if instr.instr_name.startswith("vm") and instr_prefix in vmask_instrs:
+                    vsew_bits = max(int((vlen / vsew) / 4 ),1)
+                    element_str = arch_state.v_rf[nxf_rs1][int(-vsew_bits):]
+                    element_str = "0" * (32 - len(element_str)) + element_str
+                    Hex_str = bytes.fromhex(element_str)
+                    Hex_str = Hex_str[-8:]
+                    rs1_val = struct.unpack(unsgn_sz, Hex_str)[0]
+                elif instr.instr_name.startswith("vc") or instr.instr_name.startswith("vrgather")):
                     vsew_bits = math.ceil((vlen / vsew) / 4)
                     if lmul > 1 :
                         vsew_bits = int(vsew_bits * lmul)
@@ -780,7 +788,25 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + bytes.fromhex(arch_state.f_rf[nxf_rs2]).upper()
             elif rs2_type == 'v':
-                if instr.instr_name.startswith("vc") or instr.instr_name.startswith("vrgather"):
+                # Mask instruction(vm, vfirst, vpopc, vid)
+                if instr_prefix in vmask_instrs:
+                    vsew_bits = int((vlen / vsew) / 4 )
+                    if vsew_bits < 1:
+                        vsew_bits = max(int(vsew / 4), int((vlen / vsew) / 4 ))
+                    if instr.instr_name.startswith("vfirst"):
+                        if vsew_bits * lmul >= 1:
+                            vsew_bits = int(vsew_bits * lmul)
+                    if instr.instr_name.startswith("vfirst") or instr.instr_name.startswith("vpopc"):
+                        element_str = arch_state.v_rf[last_commitvalue][int(-vsew_bits):]
+                    else:
+                        element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bits):]
+
+                    # To ensure that Hex_str is exactly 8 bits
+                    element_str = "0" * (32 - len(element_str)) + element_str
+                    Hex_str = bytes.fromhex(element_str)
+                    Hex_str = Hex_str[-8:]
+                    rs2_val = struct.unpack(unsgn_sz, Hex_str)[0]
+                elif instr.instr_name.startswith("vc") or instr.instr_name.startswith("vrgather"):
                     vsew_bits = math.ceil((vlen / vsew) / 4)
                     if lmul > 1 :
                         vsew_bits = int(vsew_bits * lmul)
