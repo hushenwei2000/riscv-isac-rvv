@@ -731,7 +731,6 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
             mask_val2 = []
             reg_num = max(int(vlen/vsew*lmul),1)
             instr_prefix = instr.instr_name.split(".")[0]
-            # print("instr_name: ",instr_prefix)
             # special value conversion based on signed/unsigned operations
             rs1_val = None
             if instr.instr_name in unsgn_rs1:
@@ -781,7 +780,6 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                             element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str       
                         rs1_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
                     mask_val1.append(rs1_val)
-                print("mask_val1: ",mask_val1)
                 # Mask instruction(vm)
                 if instr.instr_name.startswith("vm") and instr_prefix in vmask_instrs:
                     vsew_bits = max(int((vlen / vsew) / 4 ),1)
@@ -840,7 +838,6 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                             element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str       
                         rs2_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
                     mask_val2.append(rs2_val)
-                print("mask_val2: ",mask_val2)
                 # Mask instruction(vm, vfirst, vpopc, vid)
                 if instr_prefix in vmask_instrs:
                     vsew_bits = int((vlen / vsew) / 4 )
@@ -1089,7 +1086,6 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                                         op_width = 64 if instr.rs2_nregs == 2 else xlen
                                         simd_val_unpack(value['val_comb'], op_width, "rs2", rs2_val, lcls)
                                     instr_vars.update(lcls)
-                                    print("instr_vars: ",instr_vars)
                                     for coverpoints in value['val_comb']:
                                         if eval(coverpoints, globals(), instr_vars):
                                             if cgf[cov_labels]['val_comb'][coverpoints] == 0:
@@ -1267,7 +1263,6 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                     elif rd_type == 'f':
                         arch_state.f_rf[int(commitvalue[1])] =  str(commitvalue[2][2:])
                     elif rd_type == 'v':
-                        # print("commitvalue", int(commitvalue[1]), commitvalue[2][2:])
                         arch_state.v_rf[int(commitvalue[1])] = str(commitvalue[2][2:])
                     if instr.instr_name.startswith("v"):
                         print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
