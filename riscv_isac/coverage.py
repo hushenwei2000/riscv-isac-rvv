@@ -650,7 +650,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
             instr = queue.get_nowait()
 
             mnemonic = instr.mnemonic
-            commitvalue = instr.reg_commit
+            commitvalue_group = instr.reg_commit
             
             # assign default values to operands
             nxf_rs1 = 0
@@ -726,6 +726,10 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
 
 
             instr_vars = {}
+            # Store vals in different registers
+            mask_val1 = []
+            mask_val2 = []
+            reg_num = max(int(vlen/vsew*lmul),1)
             instr_prefix = instr.instr_name.split(".")[0]
             # print("instr_name: ",instr_prefix)
             # special value conversion based on signed/unsigned operations
@@ -757,6 +761,27 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + freg_content.upper()
             elif rs1_type == 'v':
+                strv_rf = ""
+                for i in range(max(int(lmul),1)):
+                    strv_rf = strv_rf + arch_state.v_rf[nxf_rs1+i]
+                strv_rf = strv_rf[-(reg_num * int(vsew / 4)):]
+                for i in range(reg_num):
+                    vsew_bits = int(vsew / 4)
+                    vsew_left = i*vsew_bits + 0
+                    vsew_right = i*vsew_bits + vsew_bits
+                    element_str = strv_rf[vsew_left:vsew_right]
+                    # Process Floating-Points Operands
+                    if instr.instr_name.startswith("vf"):
+                        rs1_val = '0x' + element_str.upper()
+                    # Process Integer Operands, Sign-Extend to XLEN
+                    else:
+                        if(element_str[0] >= '0' and element_str[0] <= '7'):
+                            element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
+                        else:
+                            element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str       
+                        rs1_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
+                    mask_val1.append(rs1_val)
+                print("mask_val1: ",mask_val1)
                 # Mask instruction(vm)
                 if instr.instr_name.startswith("vm") and instr_prefix in vmask_instrs:
                     vsew_bits = max(int((vlen / vsew) / 4 ),1)
@@ -795,6 +820,27 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                 if instr.instr_name.startswith("vf"):
                     rs1_val = '0x' + bytes.fromhex(arch_state.f_rf[nxf_rs2]).upper()
             elif rs2_type == 'v':
+                strv_rf = ""
+                for i in range(max(int(lmul),1)):
+                    strv_rf = strv_rf + arch_state.v_rf[nxf_rs2+i]
+                strv_rf = strv_rf[-(reg_num * int(vsew / 4)):]
+                for i in range(reg_num):
+                    vsew_bits = int(vsew / 4)
+                    vsew_left = i*vsew_bits + 0
+                    vsew_right = i*vsew_bits + vsew_bits
+                    element_str = strv_rf[vsew_left:vsew_right]
+                    # Process Floating-Points Operands
+                    if instr.instr_name.startswith("vf"):
+                        rs2_val = '0x' + element_str.upper()
+                    # Process Integer Operands, Sign-Extend to XLEN
+                    else:
+                        if(element_str[0] >= '0' and element_str[0] <= '7'):
+                            element_str = "0" * (int(xlen / 4) - vsew_bits) + element_str
+                        else:
+                            element_str = "f" * (int(xlen / 4) - vsew_bits) + element_str       
+                        rs2_val = struct.unpack(sgn_sz, bytes.fromhex(element_str))[0]
+                    mask_val2.append(rs2_val)
+                print("mask_val2: ",mask_val2)
                 # Mask instruction(vm, vfirst, vpopc, vid)
                 if instr_prefix in vmask_instrs:
                     vsew_bits = int((vlen / vsew) / 4 )
@@ -1043,6 +1089,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                                         op_width = 64 if instr.rs2_nregs == 2 else xlen
                                         simd_val_unpack(value['val_comb'], op_width, "rs2", rs2_val, lcls)
                                     instr_vars.update(lcls)
+                                    print("instr_vars: ",instr_vars)
                                     for coverpoints in value['val_comb']:
                                         if eval(coverpoints, globals(), instr_vars):
                                             if cgf[cov_labels]['val_comb'][coverpoints] == 0:
@@ -1051,6 +1098,84 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                                                     hit_covpts.append((cov_labels, 'val_comb', coverpoints))
                                             stats.covpt.append(str(coverpoints))
                                             cgf[cov_labels]['val_comb'][coverpoints] += 1
+                                    # Mask instruction(cover multiple registers at once)
+                                    if len(mask_val1)>0 or len(mask_val2)>0:
+                                        for coverpoints in value['val_comb']:
+                                            if cgf[cov_labels]['val_comb'][coverpoints] != 0:
+                                                continue
+                                            cover_elem = coverpoints.split(" ")
+                                            if len(cover_elem) == 3:
+                                                if cover_elem[1] == "!=":
+                                                    for i in mask_val1:
+                                                        if cgf[cov_labels]['val_comb'][coverpoints]>0:
+                                                            break
+                                                        for j in mask_val2:
+                                                            if i!=j:
+                                                                stats.ucovpt.append(str(coverpoints))
+                                                                if no_count:
+                                                                    hit_covpts.append((cov_labels, 'val_comb', coverpoints))
+                                                                stats.covpt.append(str(coverpoints))
+                                                                cgf[cov_labels]['val_comb'][coverpoints] += 1
+                                                                break
+                                                if cover_elem[1] == "==":
+                                                    if cover_elem[0] == "rs1_val" and len(mask_val1) > 0:
+                                                        real_val1 = cover_elem[-1]
+                                                        if not real_val1.isdigit():
+                                                            real_val1 = str(eval(real_val1))
+                                                        for iv in mask_val1:
+                                                            if real_val1 == str(iv):
+                                                                if cgf[cov_labels]['val_comb'][coverpoints] == 0:
+                                                                    stats.ucovpt.append(str(coverpoints))
+                                                                    if no_count:
+                                                                        hit_covpts.append((cov_labels, 'val_comb', coverpoints))
+                                                                stats.covpt.append(str(coverpoints))
+                                                                cgf[cov_labels]['val_comb'][coverpoints] += 1
+                                                                break
+                                                    if cover_elem[0] == "rs2_val" and len(mask_val2) > 0:
+                                                        real_val2 = cover_elem[-1]
+                                                        if not real_val2.isdigit():
+                                                            real_val2 = str(eval(real_val2))
+                                                        for iv in mask_val2:
+                                                            if real_val2 == str(iv):
+                                                                if cgf[cov_labels]['val_comb'][coverpoints] == 0:
+                                                                    stats.ucovpt.append(str(coverpoints))
+                                                                    if no_count:
+                                                                        hit_covpts.append((cov_labels, 'val_comb', coverpoints))
+                                                                stats.covpt.append(str(coverpoints))
+                                                                cgf[cov_labels]['val_comb'][coverpoints] += 1
+                                                                break
+                                                if cover_elem[1] == "and":
+                                                    if len(mask_val1)>0 and len(mask_val2)>0:
+                                                        real_val1 = cover_elem[0].split("==")[-1]
+                                                        real_val2 = cover_elem[2].split("==")[-1]
+                                                        for iv1 in mask_val1:
+                                                            if cgf[cov_labels]['val_comb'][coverpoints]>0:
+                                                                break
+                                                            for iv2 in mask_val2:
+                                                                if real_val1 == str(iv1) and real_val2 == str(iv2):
+                                                                    if cgf[cov_labels]['val_comb'][coverpoints] == 0:
+                                                                        stats.ucovpt.append(str(coverpoints))
+                                                                        if no_count:
+                                                                            hit_covpts.append((cov_labels, 'val_comb', coverpoints))
+                                                                    stats.covpt.append(str(coverpoints))
+                                                                    cgf[cov_labels]['val_comb'][coverpoints] += 1
+                                                                    break
+                                            else:
+                                                if len(mask_val1)>0 and len(mask_val2)>0:
+                                                    for i in mask_val1:
+                                                        if cgf[cov_labels]['val_comb'][coverpoints]>0:
+                                                            break
+                                                        instr_vars['rs1_val'] = i
+                                                        for j in mask_val2:
+                                                            instr_vars['rs2_val'] = j
+                                                            if eval(coverpoints, globals(), instr_vars):
+                                                                stats.ucovpt.append(str(coverpoints))
+                                                                if no_count:
+                                                                    hit_covpts.append((cov_labels, 'val_comb', coverpoints))
+                                                                stats.covpt.append(str(coverpoints))
+                                                                cgf[cov_labels]['val_comb'][coverpoints] += 1
+                                                                break
+
                                 if 'abstract_comb' in value \
                                         and len(value['abstract_comb']) != 0 :
                                     for coverpoints in value['abstract_comb']:
@@ -1133,20 +1258,21 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                             stats.code_seq = []
                             stats.ucode_seq = []
                             
-            if commitvalue is not None:
-                if instr.instr_name.startswith("csrrw"):
-                    print("fflags Commit Info value: ", commitvalue[2])
-                if rd_type == 'x':
-                    arch_state.x_rf[int(commitvalue[1])] =  str(commitvalue[2][2:18])
-                elif rd_type == 'f':
-                    arch_state.f_rf[int(commitvalue[1])] =  str(commitvalue[2][2:])
-                elif rd_type == 'v':
-                    print("commitvalue", int(commitvalue[1]), commitvalue[2][2:])
-                    arch_state.v_rf[int(commitvalue[1])] = str(commitvalue[2][2:])
-                if instr.instr_name.startswith("v"):
-                    print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
-                        rs2, rs2_val, "\t\t", rd, str(commitvalue[2][2:]))
-                    last_commitvalue = int(commitvalue[1])
+            if commitvalue_group is not None:
+                for commitvalue in commitvalue_group:
+                    if instr.instr_name.startswith("csrrw"):
+                        print("fflags Commit Info value: ", commitvalue[2])
+                    if rd_type == 'x':
+                        arch_state.x_rf[int(commitvalue[1])] =  str(commitvalue[2][2:18])
+                    elif rd_type == 'f':
+                        arch_state.f_rf[int(commitvalue[1])] =  str(commitvalue[2][2:])
+                    elif rd_type == 'v':
+                        # print("commitvalue", int(commitvalue[1]), commitvalue[2][2:])
+                        arch_state.v_rf[int(commitvalue[1])] = str(commitvalue[2][2:])
+                    if instr.instr_name.startswith("v"):
+                        print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
+                            rs2, rs2_val, "\t\t", rd, str(commitvalue[2][2:]))
+                        last_commitvalue = int(commitvalue[1])
 
             csr_commit = instr.csr_commit
             if csr_commit is not None:

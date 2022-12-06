@@ -25,6 +25,7 @@ class spike(spec.ParserSpec):
             '(e[0-9]+\smf?[0-9]+\sl[0-9]+\s)?'+
             '(?P<regt>[xfv])(?P<reg>[\s|\d]?\d)\s+(?P<val>[0-9abcdefx]+)'
     )
+    instr_pattern_spike_com = re.compile( '(?P<regt>[xfv])(?P<reg>[\s|\d]?\d)\s+(?P<val>[0-9abcdefx]+)' )
     
     # instr_pattern_spike_rvv Match such as (matched part in {{}}):
     # core   0: 0 {{0x00000000800001a8 (0x5e03d757) c8_vstart 0x0000000000000000 e32 m1 l1 v14 0x00000000000000000000000000000000}}
@@ -52,10 +53,10 @@ class spike(spec.ParserSpec):
 
     def extractRegisterCommitVal(self, line):
 
-        instr_pattern = self.instr_pattern_spike_rvv
-        re_search = instr_pattern.search(line)
+        instr_pattern = self.instr_pattern_spike_com
+        re_search = instr_pattern.findall(line)
         if re_search is not None:
-            return (re_search.group('regt'), re_search.group('reg'), re_search.group('val'))
+            return re_search
         else:
             return None
 
@@ -66,6 +67,7 @@ class spike(spec.ParserSpec):
                 logger.debug('parsing ' + str(line))
                 instr, mnemonic = self.extractInstruction(line)
                 addr = self.extractAddress(line)
+                
                 reg_commit = self.extractRegisterCommitVal(line)
                 csr_commit = None
                 instrObj = instructionObject(instr, 'None', addr, reg_commit = reg_commit, csr_commit = csr_commit, mnemonic = mnemonic )
