@@ -762,8 +762,11 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
             elif rs1_type == 'v':
                 strv_rf = ""
                 for i in range(max(int(lmul),1)):
-                    strv_rf = strv_rf + arch_state.v_rf[nxf_rs1+i]
+                    if (nxf_rs1+i)<len(arch_state.v_rf):
+                        strv_rf = strv_rf + arch_state.v_rf[nxf_rs1+i]
                 strv_rf = strv_rf[-(reg_num * int(vsew / 4)):]
+                while len(strv_rf)<(reg_num * int(vsew / 4)):
+                    strv_rf = "0" + strv_rf
                 for i in range(reg_num):
                     vsew_bits = int(vsew / 4)
                     vsew_left = i*vsew_bits + 0
@@ -820,8 +823,11 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
             elif rs2_type == 'v':
                 strv_rf = ""
                 for i in range(max(int(lmul),1)):
-                    strv_rf = strv_rf + arch_state.v_rf[nxf_rs2+i]
+                    if (nxf_rs2+i)<len(arch_state.v_rf):
+                        strv_rf = strv_rf + arch_state.v_rf[nxf_rs2+i]
                 strv_rf = strv_rf[-(reg_num * int(vsew / 4)):]
+                while len(strv_rf)<(reg_num * int(vsew / 4)):
+                    strv_rf = "0" + strv_rf
                 for i in range(reg_num):
                     vsew_bits = int(vsew / 4)
                     vsew_left = i*vsew_bits + 0
@@ -850,7 +856,7 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                         element_str = arch_state.v_rf[last_commitvalue][int(-vsew_bits):]
                     else:
                         element_str = arch_state.v_rf[nxf_rs2][int(-vsew_bits):]
-
+                    
                     # To ensure that Hex_str is exactly 8 bits
                     element_str = "0" * (32 - len(element_str)) + element_str
                     Hex_str = bytes.fromhex(element_str)
