@@ -551,7 +551,7 @@ def alternate(var, size, signed=True, fltr_func=None,scale_func=None):
     #return [(coverpoint,"Alternate") for coverpoint in coverpoints]
 
 
-def expand_cgf(cgf_files, xlen, flen, vlen, vsew, lmul):
+def expand_cgf(cgf_files, xlen, flen, vlen = 128, vsew = 32, lmul = 1):
     '''
     This function will replace all the abstract functions with their unrolled
     coverpoints. It replaces node

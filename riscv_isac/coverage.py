@@ -1271,8 +1271,13 @@ def compute_per_line(queue, event, cgf_queue, stats_queue, cgf, xlen, flen, vlen
                     elif rd_type == 'v':
                         arch_state.v_rf[int(commitvalue[1])] = str(commitvalue[2][2:])
                     if instr.instr_name.startswith("v"):
-                        print("Commit Info rs1,2 rd: ", instr.instr_name, rs1, rs1_val, "\t\t", 
-                            rs2, rs2_val, "\t\t", rd, str(commitvalue[2][2:]))
+                        print("Commit Info : ", instr.instr_name, rs1, rs1_val, "\t\t") 
+                        if 'rs1' in locals():
+                            print("rs1 : ", rs1, rs1_val, "\t\t")
+                        if 'rs2' in locals():
+                            print("rs2 : ", rs2, rs2_val, "\t\t")
+                        if 'rd' in locals():
+                            print("rd : ", rd, str(commitvalue[2][2:]), "\t\t")
                         last_commitvalue = int(commitvalue[1])
 
             csr_commit = instr.csr_commit
