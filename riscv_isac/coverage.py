@@ -1493,8 +1493,12 @@ def compute(trace_file, test_name, cgf, parser_name, decoder_name, detailed, xle
     rpt_str = gen_report(rcgf, detailed)
     logger.info('Writing out updated cgf : ' + test_name + '.cgf')
     dump_file = open(test_name+'.cgf', 'w')
-    dump_file.write(ruamel.yaml.round_trip_dump(rcgf, indent=5, block_seq_indent=3))
+    yaml = YAML()
+    yaml.dump(rcgf,dump_file)
     dump_file.close()
+    #dump_file = open(test_name+'.cgf', 'w')
+    #dump_file.write(ruamel.yaml.round_trip_dump(rcgf, indent=5, block_seq_indent=3))
+    #dump_file.close()
 
     if sig_addrs:
         logger.info('Creating Data Propagation Report : ' + test_name + '.md')
